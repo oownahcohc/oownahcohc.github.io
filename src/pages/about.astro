@@ -1,0 +1,36 @@
+---
+import Layout from '../layouts/BlogPost.astro';
+import { GITHUB_URL } from '../consts';
+---
+
+<Layout
+	title="소개"
+	description="블로그와 저에 대한 짧은 소개입니다."
+	pubDate={new Date('2026-08-06')}
+>
+	<p>
+		안녕하세요. 개발하면서 알게 된 것들을 정리해 두는 공간입니다. 나중의 제가 다시 찾아볼 만한 글을
+		목표로 씁니다.
+	</p>
+
+	<h2>여기에 쓰는 것</h2>
+	<ul>
+		<li>삽질하다 알아낸 것 — 문제 상황, 원인, 해결 과정</li>
+		<li>새로 써 본 도구나 라이브러리 사용기</li>
+		<li>읽은 문서나 책에서 남기고 싶은 부분</li>
+	</ul>
+
+	<h2>연락</h2>
+	<p>
+		<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>에서 만나실 수 있습니다.
+	</p>
+
+	<p class="note">이 페이지는 <code>src/pages/about.astro</code> 를 수정하면 바뀝니다.</p>
+</Layout>
+
+<style>
+	.note {
+		font-size: 0.85em;
+		color: var(--fg-muted);
+	}
+</style>

@@ -1,0 +1,215 @@
+/*
+  Bear Blog의 기본 CSS를 바탕으로 한글 타이포그래피와 다크 모드를 추가한 스타일.
+  https://github.com/HermanMartinus/bearblog
+  License MIT
+ */
+
+:root {
+	color-scheme: light dark;
+
+	--font-sans:
+		'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+		'Malgun Gothic', system-ui, sans-serif;
+	--font-mono:
+		ui-monospace, SFMono-Regular, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+	/* 라이트 모드 */
+	--bg: #ffffff;
+	--bg-subtle: #f6f8fa;
+	--bg-hero: #f2f4f8;
+	--fg: #24292f;
+	--fg-strong: #0f1219;
+	--fg-muted: #656d76;
+	--border: #d8dee4;
+	--accent: #2337ff;
+	--accent-soft: rgba(35, 55, 255, 0.08);
+	--code-bg: #24292e;
+	--box-shadow: 0 1px 2px rgba(15, 18, 25, 0.06), 0 8px 24px rgba(15, 18, 25, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #0d1117;
+		--bg-subtle: #161b22;
+		--bg-hero: #12171f;
+		--fg: #c9d1d9;
+		--fg-strong: #f0f6fc;
+		--fg-muted: #8b949e;
+		--border: #30363d;
+		--accent: #79a5ff;
+		--accent-soft: rgba(121, 165, 255, 0.12);
+		--code-bg: #161b22;
+		--box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	padding: 0;
+	font-family: var(--font-sans);
+	font-size: 18px;
+	line-height: 1.85;
+	/* 한글은 단어 중간에서 끊지 않는 편이 훨씬 읽기 좋습니다. */
+	word-break: keep-all;
+	overflow-wrap: break-word;
+	background: var(--bg);
+	color: var(--fg);
+	text-align: left;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+}
+
+main {
+	flex: 1;
+	width: 720px;
+	max-width: calc(100% - 2em);
+	margin: auto;
+	padding: 3em 1em;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	margin: 2.2rem 0 0.8rem;
+	color: var(--fg-strong);
+	line-height: 1.4;
+	letter-spacing: -0.02em;
+	font-weight: 700;
+}
+h1 {
+	font-size: 2.2em;
+	line-height: 1.3;
+}
+h2 {
+	font-size: 1.6em;
+}
+h3 {
+	font-size: 1.3em;
+}
+h4 {
+	font-size: 1.15em;
+}
+h5 {
+	font-size: 1em;
+}
+
+strong,
+b {
+	font-weight: 700;
+	color: var(--fg-strong);
+}
+
+a {
+	color: var(--accent);
+	text-underline-offset: 3px;
+}
+
+p {
+	margin: 0 0 1.4em;
+}
+
+ul,
+ol {
+	padding-left: 1.4em;
+}
+li {
+	margin-bottom: 0.4em;
+}
+
+img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 8px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.9em;
+	display: block;
+	overflow-x: auto;
+}
+th,
+td {
+	border: 1px solid var(--border);
+	padding: 0.5em 0.75em;
+	text-align: left;
+}
+th {
+	background: var(--bg-subtle);
+}
+
+code {
+	font-family: var(--font-mono);
+	font-size: 0.85em;
+	padding: 0.15em 0.4em;
+	background-color: var(--bg-subtle);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	word-break: break-all;
+}
+
+pre {
+	padding: 1.2em;
+	border-radius: 8px;
+	overflow-x: auto;
+	font-size: 0.85em;
+	line-height: 1.6;
+}
+pre > code {
+	all: unset;
+	font-family: var(--font-mono);
+}
+
+blockquote {
+	border-left: 3px solid var(--accent);
+	background: var(--accent-soft);
+	padding: 0.8em 1.2em;
+	margin: 0 0 1.4em;
+	border-radius: 0 6px 6px 0;
+	color: var(--fg-muted);
+}
+blockquote p:last-child {
+	margin-bottom: 0;
+}
+
+hr {
+	border: none;
+	border-top: 1px solid var(--border);
+	margin: 2.5em 0;
+}
+
+@media (max-width: 720px) {
+	body {
+		font-size: 17px;
+	}
+	main {
+		padding: 2em 1em;
+	}
+	h1 {
+		font-size: 1.8em;
+	}
+}
+
+.sr-only {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	position: absolute !important;
+	height: 1px;
+	width: 1px;
+	overflow: hidden;
+	clip: rect(1px, 1px, 1px, 1px);
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

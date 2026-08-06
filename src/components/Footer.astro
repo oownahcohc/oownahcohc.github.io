@@ -1,0 +1,42 @@
+---
+import { AUTHOR, GITHUB_URL } from '../consts';
+
+const year = new Date().getFullYear();
+---
+
+<footer>
+	<p>© {year} {AUTHOR}</p>
+	<p class="meta">
+		<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
+		<span aria-hidden="true">·</span>
+		<a href="/rss.xml">RSS</a>
+		<span aria-hidden="true">·</span>
+		<span>Built with Astro</span>
+	</p>
+</footer>
+
+<style>
+	footer {
+		border-top: 1px solid var(--border);
+		padding: 2.5em 1em 3em;
+		text-align: center;
+		color: var(--fg-muted);
+		font-size: 0.85em;
+	}
+	footer p {
+		margin: 0 0 0.4em;
+	}
+	.meta {
+		display: flex;
+		justify-content: center;
+		gap: 0.6em;
+		flex-wrap: wrap;
+	}
+	footer a {
+		color: var(--fg-muted);
+		text-decoration: none;
+	}
+	footer a:hover {
+		color: var(--accent);
+	}
+</style>
