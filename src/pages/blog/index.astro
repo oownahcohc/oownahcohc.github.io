@@ -1,20 +1,14 @@
 ---
 import BaseHead from '../../components/BaseHead.astro';
 import Footer from '../../components/Footer.astro';
-import FormattedDate from '../../components/FormattedDate.astro';
 import Header from '../../components/Header.astro';
+import PostCard from '../../components/PostCard.astro';
+import TagPills from '../../components/TagPills.astro';
 import { SITE_TITLE } from '../../consts';
-import { getPublishedPosts } from '../../lib/posts';
+import { collectTags, getPublishedPosts } from '../../lib/posts';
 
 const posts = await getPublishedPosts();
-
-// 연도별로 묶어서 보여줍니다.
-const byYear = new Map<number, typeof posts>();
-for (const post of posts) {
-	const year = post.data.pubDate.getFullYear();
-	byYear.set(year, [...(byYear.get(year) ?? []), post]);
-}
-const years = [...byYear.keys()].sort((a, b) => b - a);
+const tags = collectTags(posts);
 ---
 
 <!doctype html>
@@ -25,122 +19,35 @@ const years = [...byYear.keys()].sort((a, b) => b - a);
 	<body>
 		<Header />
 		<main>
-			<h1>글</h1>
-			<p class="count">총 {posts.length}개</p>
+			<section class="listing-page">
+				<div class="listing-heading">
+					<div>
+						<p class="eyebrow">All Articles</p>
+						<h1>글 {posts.length}개</h1>
+					</div>
+					{tags.length > 0 && <TagPills tags={tags} total={posts.length} />}
+				</div>
 
-			{
-				years.map((year) => (
-					<section class="year-group">
-						<h2>{year}</h2>
-						<ul>
-							{byYear.get(year)!.map((post) => (
-								<li>
-									<a href={`/blog/${post.id}/`}>
-										<span class="title">
-											{post.data.title}
-											{post.data.draft && <span class="draft">초안</span>}
-										</span>
-										<span class="date">
-											<FormattedDate date={post.data.pubDate} />
-										</span>
-									</a>
-									<p class="desc">{post.data.description}</p>
-									{post.data.tags.length > 0 && (
-										<p class="tags">
-											{post.data.tags.map((tag) => (
-												<span class="tag">#{tag}</span>
-											))}
-										</p>
-									)}
-								</li>
-							))}
-						</ul>
-					</section>
-				))
-			}
+				{
+					posts.length === 0 ? (
+						<p class="empty-state">
+							아직 글이 없습니다. <code>src/content/blog/</code> 에 마크다운 파일을 추가해 보세요.
+						</p>
+					) : (
+						<>
+							<div class="post-grid" data-post-grid>
+								{posts.map((post) => (
+									<PostCard post={post} />
+								))}
+							</div>
+							<p class="empty-state" data-filter-empty hidden>
+								해당 태그의 글이 없습니다.
+							</p>
+						</>
+					)
+				}
+			</section>
 		</main>
 		<Footer />
 	</body>
 </html>
-
-<style>
-	h1 {
-		margin-top: 0;
-	}
-	.count {
-		color: var(--fg-muted);
-		font-size: 0.9em;
-		margin-bottom: 2.5em;
-	}
-	.year-group h2 {
-		font-size: 0.95em;
-		color: var(--fg-muted);
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
-		margin-bottom: 0.2em;
-	}
-	ul {
-		list-style: none;
-		padding: 0;
-		margin: 0 0 2.5em;
-	}
-	li {
-		padding: 1.1em 0;
-		border-bottom: 1px solid var(--border);
-		margin: 0;
-	}
-	li a {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		gap: 1em;
-		text-decoration: none;
-		color: var(--fg-strong);
-	}
-	.title {
-		font-weight: 600;
-	}
-	li a:hover .title {
-		color: var(--accent);
-	}
-	.draft {
-		margin-left: 0.5em;
-		font-size: 0.7em;
-		font-weight: 500;
-		padding: 0.1em 0.5em;
-		border: 1px solid var(--border);
-		border-radius: 999px;
-		color: var(--fg-muted);
-		vertical-align: middle;
-	}
-	.date {
-		flex-shrink: 0;
-		font-size: 0.8em;
-		color: var(--fg-muted);
-		font-variant-numeric: tabular-nums;
-	}
-	.desc {
-		margin: 0.3em 0 0;
-		font-size: 0.9em;
-		color: var(--fg-muted);
-	}
-	.tags {
-		margin: 0.5em 0 0;
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5em;
-		font-size: 0.8em;
-	}
-	.tag {
-		color: var(--accent);
-		background: var(--accent-soft);
-		padding: 0.1em 0.6em;
-		border-radius: 999px;
-	}
-	@media (max-width: 520px) {
-		li a {
-			flex-direction: column;
-			gap: 0.2em;
-		}
-	}
-</style>

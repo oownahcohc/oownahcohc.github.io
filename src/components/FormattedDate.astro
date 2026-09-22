@@ -4,14 +4,12 @@ interface Props {
 }
 
 const { date } = Astro.props;
+
+// 2026.09.09 형태로 표기합니다.
+const formatted = date
+	.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+	.replace(/\.\s*$/, '')
+	.replace(/\.\s*/g, '.');
 ---
 
-<time datetime={date.toISOString()}>
-	{
-		date.toLocaleDateString('ko-KR', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-		})
-	}
-</time>
+<time datetime={date.toISOString()}>{formatted}</time>

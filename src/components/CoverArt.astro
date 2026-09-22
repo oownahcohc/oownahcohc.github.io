@@ -1,0 +1,135 @@
+---
+/**
+ * 대표 이미지가 없는 글을 위한 자동 생성 커버.
+ * 글 id를 해시해서 항상 같은 그림이 나오되, 글마다 다르게 보입니다.
+ */
+interface Props {
+	seed: string;
+}
+
+const { seed } = Astro.props;
+
+let h = 0;
+for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+const variant = h % 4;
+const tilt = (h % 7) - 3;
+---
+
+<div class="cover-art" data-variant={variant}>
+	<svg viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+		<rect class="panel" x="38" y="22" width="244" height="136" rx="8" transform={`rotate(${tilt} 160 90)`} />
+		{
+			variant === 0 && (
+				<>
+					<rect class="mark soft" x="58" y="46" width="96" height="10" rx="5" />
+					<rect class="mark" x="58" y="66" width="60" height="10" rx="5" />
+					<rect class="mark soft" x="58" y="86" width="78" height="10" rx="5" />
+					<circle class="dot" cx="236" cy="66" r="12" />
+					<rect class="mark accent" x="58" y="118" width="128" height="4" rx="2" />
+				</>
+			)
+		}
+		{
+			variant === 1 && (
+				<>
+					<rect class="mark soft" x="60" y="44" width="40" height="34" rx="6" />
+					<rect class="mark soft" x="108" y="44" width="40" height="34" rx="6" />
+					<rect class="mark accent-fill" x="60" y="86" width="40" height="34" rx="6" />
+					<rect class="mark soft" x="108" y="86" width="40" height="34" rx="6" />
+					<circle class="dot" cx="226" cy="70" r="16" />
+					<rect class="mark accent" x="196" y="104" width="60" height="4" rx="2" />
+				</>
+			)
+		}
+		{
+			variant === 2 && (
+				<>
+					<circle class="ring" cx="160" cy="90" r="46" />
+					<circle class="ring soft-ring" cx="160" cy="90" r="30" />
+					<circle class="dot" cx="160" cy="90" r="10" />
+					<rect class="mark accent" x="68" y="140" width="72" height="4" rx="2" />
+					<rect class="mark soft" x="188" y="140" width="48" height="4" rx="2" />
+				</>
+			)
+		}
+		{
+			variant === 3 && (
+				<>
+					<path class="line" d="M62 128 L112 96 L158 110 L206 58 L258 78" />
+					<circle class="dot" cx="112" cy="96" r="7" />
+					<circle class="dot" cx="206" cy="58" r="7" />
+					<rect class="mark soft" x="62" y="44" width="70" height="8" rx="4" />
+					<rect class="mark accent" x="62" y="146" width="100" height="4" rx="2" />
+				</>
+			)
+		}
+	</svg>
+</div>
+
+<style>
+	.cover-art {
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(circle at 78% 22%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 30%),
+			linear-gradient(145deg, var(--bg) 0%, var(--surface) 48%, var(--accent-01) 100%);
+	}
+	.cover-art[data-variant='1'] {
+		background:
+			radial-gradient(circle at 22% 78%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 32%),
+			linear-gradient(120deg, var(--accent-01) 0%, var(--surface) 55%, var(--bg) 100%);
+	}
+	.cover-art[data-variant='2'] {
+		background:
+			radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 42%),
+			linear-gradient(165deg, var(--bg) 0%, var(--accent-01) 100%);
+	}
+	.cover-art[data-variant='3'] {
+		background:
+			radial-gradient(circle at 88% 78%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 34%),
+			linear-gradient(135deg, var(--surface) 0%, var(--bg) 45%, var(--accent-01) 100%);
+	}
+	svg {
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+	.panel {
+		fill: color-mix(in srgb, var(--bg) 72%, transparent);
+		stroke: color-mix(in srgb, var(--accent) 18%, transparent);
+		stroke-width: 1;
+	}
+	.mark {
+		fill: var(--gray-02);
+	}
+	.mark.soft {
+		fill: color-mix(in srgb, var(--accent) 22%, var(--gray-01));
+	}
+	.mark.accent {
+		fill: var(--accent);
+		opacity: 0.55;
+	}
+	.mark.accent-fill {
+		fill: color-mix(in srgb, var(--accent) 45%, transparent);
+	}
+	.dot {
+		fill: var(--accent);
+		opacity: 0.85;
+	}
+	.ring {
+		fill: none;
+		stroke: color-mix(in srgb, var(--accent) 40%, transparent);
+		stroke-width: 2;
+	}
+	.ring.soft-ring {
+		stroke: var(--gray-02);
+	}
+	.line {
+		fill: none;
+		stroke: var(--accent);
+		stroke-width: 2.5;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0.75;
+	}
+</style>

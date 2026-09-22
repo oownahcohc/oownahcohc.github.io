@@ -31,8 +31,14 @@ const ogImage = image ? new URL(image.src, Astro.url) : undefined;
 />
 <meta name="generator" content={Astro.generator} />
 
-<!-- Pretendard: 한글 가독성용 웹폰트 (unicode-range 기반 동적 서브셋) -->
+<!-- 본문용 IBM Plex Sans KR + 폴백 Pretendard -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link
+	rel="stylesheet"
+	href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap"
+/>
 <link
 	rel="stylesheet"
 	as="style"
