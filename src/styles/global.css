@@ -520,6 +520,28 @@ main {
 	border-radius: var(--radius);
 	box-shadow: 0 16px 40px rgba(20, 26, 36, 0.1);
 }
+/* 본문 속 도식 — 배경에 자연스럽게 얹히고, 라이트/다크를 따라갑니다 */
+.article-content .diagram {
+	margin: 44px 0;
+}
+.article-content .diagram img {
+	display: block;
+	width: 100%;
+	height: auto;
+	margin: 0;
+	padding: 18px;
+	border: 1px solid var(--gray-02);
+	border-radius: var(--radius);
+	background: var(--bg);
+	box-shadow: none;
+}
+.article-content .diagram figcaption {
+	margin-top: 12px;
+	color: var(--fg-muted);
+	font-size: 14px;
+	line-height: 1.65;
+}
+
 .article-content blockquote {
 	padding: 20px 24px;
 	border-left: 4px solid var(--accent);

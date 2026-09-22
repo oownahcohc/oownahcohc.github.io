@@ -16,6 +16,20 @@ tags: ['ai', 'claude-code', 'workflow']
 > 지침은 단일 원천에, 규칙은 버전 관리되는 위치에,
 > 위험한 행동은 기계적으로 막고, **측정하지 않은 것은 주장하지 않는다.**
 
+세우고 나니 한 바퀴가 이렇게 돌게 됐습니다. 에이전트가 지침을 읽고 일하면(01),
+게이트가 기계적으로 걸러내고(02), 걸린 것은 사람에게 넘어오고(EX),
+사람이 판단한 뒤(04) 출시하고 같은 지표로 다시 재는(05) 순환입니다.
+
+<figure class="diagram">
+<picture>
+<source srcset="/diagrams/ai-workflow-dark.svg" media="(prefers-color-scheme: dark)" />
+<img src="/diagrams/ai-workflow-light.svg" alt="AI 개발 워크플로 다이어그램. 01 에이전트 레인에서 CLAUDE.md가 세션에 로드돼 에이전트 작업으로 이어지고, 02 자동 게이트 레인의 guard-bash.sh·/code-review·/baro-review를 거친다. deny·ask에 걸리면 EX 예외 레인으로 빠져 사람에게 넘어가고, 04 사람 판단 레인에서 문제 정의·가설·승인·결과표 판정을 거쳐, 05 출시·측정 레인의 관측과 재측정으로 이어진 뒤 다시 처음으로 돌아온다." width="1006" height="786" loading="lazy" decoding="async" />
+</picture>
+<figcaption>왼쪽 아래 「문제 정의」에서 출발해 위로 올라갔다가, 게이트를 거쳐 오른쪽 아래로 돌아 나옵니다. 빨간 점선이 에이전트가 막혀 사람에게 넘어오는 흐름입니다. <a href="/diagrams/ai-workflow-light.svg" target="_blank" rel="noopener">크게 보기</a></figcaption>
+</figure>
+
+아래 단계들은 이 그림의 각 레인을 하나씩 세워 나간 이야기입니다.
+
 ## 1단계. "한 곳에 모은다"가 생각보다 어렵다
 
 파일을 루트에 모으면 끝날 줄 알았습니다. 그런데 하위 레포에서 세션을 열면 skill이 안 보였습니다.
