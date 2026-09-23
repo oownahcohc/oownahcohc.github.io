@@ -76,6 +76,9 @@ flowchart LR
 
 ### 한도는 112가 아니라 81이었다
 
+여기서 말하는 **한도**는 DB 서버가 동시에 받아 주는 연결 수, PostgreSQL의 `max_connections`입니다.
+앱 쪽에서 Spring으로 설정하는 Hikari 풀 크기와는 다른 숫자인데, 무엇이 다른지는 이 절 끝에서 정리합니다.
+
 처음엔 한도를 계산으로 추정했습니다. RDS PostgreSQL의 `max_connections` 기본값은 이 식입니다.
 
 ```
@@ -100,6 +103,77 @@ shared_buffers = 23,570 페이지 (× 8kB = 184 MiB)
 
 이 역산으로 얻은 건 81이라는 숫자보다 **이 한도는 인스턴스를 바꾸지 않는 한 늘지 않는다**는 확신이었습니다.
 파라미터로 억지로 올릴 수는 있지만, 1 GiB 안에서 커넥션을 늘리면 OOM 위험이 커진다고 판단해 그 길은 택하지 않았습니다.
+
+### 한도 81과 풀 25는 무엇이 다른가
+
+한도 81과 사고를 낸 설정 25는 둘 다 "커넥션 개수"라서 헷갈리기 쉽습니다.
+하지만 둘은 **서로 다른 쪽에서, 서로 다른 범위를** 셉니다.
+
+**`max_connections`는 DB 서버가 받아 주는 상한입니다.**
+PostgreSQL 문서의 정의는 "데이터베이스 서버에 동시에 연결할 수 있는 최대 수"입니다. 세 가지만 기억하면 됩니다.
+
+- **데이터베이스가 아니라 서버(인스턴스) 단위입니다.** 그래서 같은 인스턴스에 있는 prd DB와 dev DB가 81을 나눠 씁니다.
+- **연결 하나가 DB 서버의 프로세스 하나입니다.** PostgreSQL은 접속이 들어올 때마다 그 연결 전용 백엔드 프로세스를 띄웁니다. 한도가 메모리에 비례하는 이유가 이것이고, RDS 기본식은 엔진 메모리 약 9.1 MiB(9,531,392 B)마다 연결 1개를 잡습니다.
+- **서버를 시작할 때만 정해집니다.** 바꾸려면 파라미터를 고치고 DB를 재시작해야 합니다.
+
+81개가 전부 일반 접속 몫인 것도 아닙니다. **맨 끝 몇 칸은 예약석**입니다.
+남은 자리가 `superuser_reserved_connections`(여기서는 3) 이하로 줄면 superuser만 들어올 수 있고,
+그 바로 위 구간은 지정된 역할에게만 열립니다. RDS는 이 구간을 관리용 `rds_reserved` 역할 몫으로 예약해 둡니다.
+사고 때 본 에러는 "남은 자리는 예약석뿐이라 일반 접속은 받을 수 없다"는 뜻이었습니다.
+
+```
+FATAL: remaining connection slots are reserved for roles with
+       privileges of the "rds_reserved" role
+```
+
+**Hikari의 `maximum-pool-size`는 앱 하나가 열어 둘 상한입니다.**
+HikariCP는 DB가 아니라 **앱 프로세스 안에서** 도는 라이브러리입니다.
+`maximum-pool-size`는 "이 풀이 가질 수 있는 커넥션 수(쓰는 것과 노는 것을 합쳐서)"입니다.
+풀이 이 크기에 도달했는데 놀고 있는 커넥션이 없으면, 커넥션을 빌리려는 스레드는 `connection-timeout`만큼 기다리다가 예외를 받습니다.
+
+그리고 **풀은 앱 인스턴스마다 하나씩 생깁니다.** 서버가 두 대면 풀도 두 벌이고, DB 입장에서는 그 둘을 더한 수가 붙습니다.
+그래서 두 숫자를 잇는 규칙은 하나입니다.
+
+> **DB에 붙는 모든 풀의 최대치 합 + 사람·관리 도구 ≤ `max_connections` − 예약석**
+
+사고 날 밤에는 이 규칙이 깨졌습니다. v1 두 대가 이미 57개를 쥔 상태에서, v2가 25개를 더 열려고 했습니다.
+
+```mermaid
+flowchart TB
+    subgraph APP["v2 운영 서버 · JVM 하나"]
+        T["Tomcat 요청 스레드<br/><small>최대 600</small>"] -->|"빌리기 · 최대 1.1초 대기"| P["Hikari 풀<br/><small>최대 10</small>"]
+    end
+    B["배치 앱의 Hikari 풀<br/><small>최대 5</small>"]
+    H["사람 · 관리 도구"]
+    P -->|"연결 10"| DB[("PostgreSQL 인스턴스<br/><small>max_connections 81<br/>맨 끝 몇 칸은 예약석</small>")]
+    B -->|"연결 최대 5"| DB
+    H --> DB
+```
+
+그림에는 줄 서는 곳이 두 군데 있습니다. **스레드는 풀 앞에서** 기다리고, **풀은 DB 입구에서** 새 연결을 허락받습니다.
+Tomcat 스레드 600개가 커넥션 10개를 나눠 쓸 수 있는 건, 요청 하나가 커넥션을 짧게 빌렸다 돌려주기 때문입니다.
+
+| | `max_connections` | Hikari `maximum-pool-size` |
+| --- | --- | --- |
+| <span style="white-space:nowrap">위치</span> | DB 서버 (RDS 파라미터) | 앱 프로세스 안 (Spring 설정 `db-core.yml`) |
+| <span style="white-space:nowrap">세는 대상</span> | 인스턴스에 붙은 모든 연결의 합. 모든 앱, 모든 DB, 사람까지 | 이 풀 하나가 열어 둘 연결 수 |
+| <span style="white-space:nowrap">넘치면</span> | 새 접속을 **거절**한다 (`FATAL`) | 빌리려는 스레드가 `connection-timeout`까지 **기다린** 뒤 예외 |
+| <span style="white-space:nowrap">바꾸려면</span> | 파라미터 변경 후 DB 재시작, 또는 인스턴스 교체 | 설정 변경 후 앱 재배포 |
+| <span style="white-space:nowrap">지금 값</span> | 81 | 운영 10 (사고 때 25) |
+
+같은 "커넥션 부족"이라도 어디서 막히느냐에 따라 모양이 다릅니다.
+
+| | 앱의 풀이 모자랄 때 | DB 한도에 닿았을 때 |
+| --- | --- | --- |
+| <span style="white-space:nowrap">막히는 곳</span> | 앱 안. DB에는 자리가 남아 있을 수도 있다 | DB 입구. 같은 DB를 쓰는 **모든** 앱이 새 연결을 못 연다 |
+| <span style="white-space:nowrap">에러</span> | Hikari: `Connection is not available, request timed out after ...ms` | PostgreSQL: `FATAL: remaining connection slots are reserved ...` |
+| <span style="white-space:nowrap">영향 범위</span> | 그 앱 하나 | 한 인스턴스를 공유하는 전부. 이번엔 v1 운영까지 위험했다 |
+| <span style="white-space:nowrap">이 글에서</span> | 뒤의 재현 실험 | 08-23 사고 |
+
+풀이 인스턴스마다 생긴다는 점은 배포할 때 드러납니다.
+운영 배포는 Blue/Green이라, 새 인스턴스가 뜨고 트래픽이 넘어간 뒤에도 **옛 인스턴스를 5분 더 살려 둡니다**(Terraform `termination_wait_time_in_minutes = 5`).
+두 인스턴스가 모두 최소 유휴 10을 채우므로, 그 사이 v2 운영 몫은 10이 아니라 **20**입니다.
+설정에서 계산한 값이고, 실제로 관측한 적은 없습니다. 뒤에 나올 예산표의 "v2 운영 10"은 이 구간을 따로 세지 않았는데, 더해도 22 + 10 = 32로 가용 66 안에 들어갑니다.
 
 ### 57개는 누가 쥐고 있었나
 
