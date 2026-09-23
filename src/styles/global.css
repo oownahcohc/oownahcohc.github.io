@@ -388,13 +388,16 @@ main {
 .article-page {
 	padding: 0 40px 120px;
 }
+/* 본문 단과 같은 폭으로 둡니다. .article-shell 은 목차가 있든 없든 본문 열의
+   왼쪽 변이 (가용폭/2 - 380px) 에 서므로, 헤더도 760px 중앙 정렬이어야 변이 맞습니다.
+   920px 로 두면 헤더만 80px 왼쪽으로 나갑니다. */
 .article-header {
-	max-width: 920px;
+	max-width: 760px;
 	margin: 0 auto;
 	padding: 72px 0 42px;
 }
 .article-header h1 {
-	max-width: 920px;
+	max-width: 100%;
 	margin: 18px 0 0;
 	font-size: clamp(34px, 4.8vw, 48px);
 	font-weight: 700;
@@ -839,4 +842,104 @@ main {
 	clip: rect(1px, 1px, 1px, 1px);
 	clip-path: inset(50%);
 	white-space: nowrap;
+}
+
+/* ── mermaid 다이어그램 ─────────────────────────────── */
+.mermaid-diagram {
+	margin: 2rem 0;
+	padding: 1.25rem 1rem;
+	/* 자연 크기 SVG 가 페이지를 가로로 밀지 않게 컨테이너에서 끊고 안에서 스크롤합니다. */
+	max-width: 100%;
+	min-width: 0;
+	overflow-x: auto;
+	text-align: center;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+}
+
+/* 다이어그램은 본문 단보다 넓게 씁니다. 참여자가 넷 넘는 시퀀스가
+   본문 폭에 갇히면 읽을 수 없게 눌리거나 잘립니다. 그래도 넘치면 가로 스크롤합니다. */
+/* 다이어그램 상자는 본문 단에 정확히 맞춥니다. 좌우로 튀어나가면 목차와 겹치거나
+   본문과 어긋나 보입니다. 넘치는 다이어그램은 상자 안에서 가로 스크롤합니다. */
+.mermaid-diagram svg {
+	max-width: none;
+	height: auto;
+}
+.mermaid-diagram pre {
+	text-align: left;
+}
+/* 본문 단보다 넓은 다이어그램은 상자 안에서 가로로 스크롤합니다.
+   스크롤바를 항상 보이게 둬서 "잘린 게 아니라 더 있다"가 드러나게 합니다. */
+.mermaid-diagram {
+	scrollbar-width: thin;
+	scrollbar-color: var(--gray-04) transparent;
+}
+.mermaid-diagram::-webkit-scrollbar {
+	height: 8px;
+}
+.mermaid-diagram::-webkit-scrollbar-thumb {
+	background: var(--gray-04);
+	border-radius: 4px;
+}
+
+/* ── 접이식 보충 설명 (<details>) ─────────────────────
+   본문 흐름을 끊지 않으면서 곁가지를 붙이는 자리. 기본은 접혀 있습니다. */
+.article-content details {
+	margin: 1.8rem 0;
+	padding: 0 18px;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+}
+.article-content details > summary {
+	margin: 0 -18px;
+	padding: 14px 18px;
+	list-style: none;
+	cursor: pointer;
+	color: var(--fg);
+	font-size: 15.5px;
+	line-height: 1.6;
+	/* 마커를 직접 그립니다. 기본 삼각형은 브라우저마다 위치가 다릅니다. */
+	display: grid;
+	grid-template-columns: 22px 1fr;
+	gap: 12px;
+	align-items: center;
+}
+.article-content details > summary::-webkit-details-marker {
+	display: none;
+}
+/* 글리프(▸)는 폰트마다 크기가 제각각이고 U+25B8 은 이름부터 'SMALL' 이라
+   작게 나옵니다. 그래서 border 로 직접 그려 크기를 고정합니다. */
+.article-content details > summary::before {
+	content: '';
+	justify-self: center;
+	width: 0;
+	height: 0;
+	border-left: 10px solid var(--accent);
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+	transition: transform 0.15s ease;
+}
+.article-content details[open] > summary::before {
+	transform: rotate(90deg);
+}
+.article-content details > summary:hover {
+	color: var(--accent);
+}
+.article-content details[open] > summary {
+	border-bottom: 1px solid var(--line);
+	margin-bottom: 4px;
+}
+/* 안쪽 첫·마지막 요소의 바깥 여백을 죽여 상자에 딱 맞춥니다. */
+.article-content details > *:not(summary):first-of-type {
+	margin-top: 14px;
+}
+.article-content details > *:last-child {
+	margin-bottom: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+	.article-content details > summary::before {
+		transition: none;
+	}
 }

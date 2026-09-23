@@ -142,5 +142,123 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 				for (const target of targets) observer.observe(target);
 			}
 		</script>
+
+		<!-- ```mermaid 코드 블록을 다이어그램으로 바꿉니다. 블록이 없는 글에서는 mermaid 를 내려받지 않습니다. -->
+		<script>
+			const blocks = document.querySelectorAll<HTMLElement>('pre[data-language="mermaid"]');
+			if (blocks.length > 0) {
+				const holders: HTMLElement[] = [];
+				for (const block of blocks) {
+					const holder = document.createElement('div');
+					holder.className = 'mermaid-diagram';
+					// shiki 가 span 으로 쪼갠 것을 textContent 로 되돌립니다.
+					holder.dataset.source = block.textContent ?? '';
+					block.replaceWith(holder);
+					holders.push(holder);
+				}
+
+				const showSource = () => {
+					for (const holder of holders) {
+						const pre = document.createElement('pre');
+						pre.textContent = holder.dataset.source ?? '';
+						holder.replaceChildren(pre);
+					}
+				};
+
+				try {
+					// 다이어그램이 있는 글에서만 내려받도록 동적 import 로 둡니다(별도 청크).
+					const { default: mermaid } = await import('mermaid');
+
+					// 색은 블로그 토큰에서 그대로 가져옵니다. --accent 한 줄을 바꾸면
+					// 다이어그램도 같이 따라오고, 라이트/다크가 어긋날 일이 없습니다.
+					const token = (name: string) =>
+						getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+					const render = async () => {
+						const accent = token('--accent');
+						const wash = token('--accent-01');
+						const washStrong = token('--accent-02');
+						const edge = token('--gray-04');
+						const ink = token('--gray-10');
+						const inkMuted = token('--gray-08');
+						const surface = token('--surface');
+						const bg = token('--bg');
+						const faint = token('--gray-01');
+
+						mermaid.initialize({
+							startOnLoad: false,
+							securityLevel: 'strict',
+							theme: 'base',
+							themeVariables: {
+								fontFamily: 'inherit',
+								fontSize: '13px',
+								background: surface,
+								// 노드
+								primaryColor: wash,
+								primaryBorderColor: accent,
+								primaryTextColor: ink,
+								mainBkg: wash,
+								nodeBorder: accent,
+								secondaryColor: faint,
+								tertiaryColor: bg,
+								textColor: inkMuted,
+								lineColor: edge,
+								edgeLabelBackground: surface,
+								// subgraph
+								clusterBkg: bg,
+								clusterBorder: edge,
+								titleColor: inkMuted,
+								// sequence
+								actorBkg: wash,
+								actorBorder: accent,
+								actorTextColor: ink,
+								actorLineColor: edge,
+								signalColor: inkMuted,
+								signalTextColor: inkMuted,
+								labelBoxBkgColor: washStrong,
+								labelBoxBorderColor: accent,
+								labelTextColor: ink,
+								loopTextColor: inkMuted,
+								noteBkgColor: faint,
+								noteBorderColor: edge,
+								noteTextColor: ink,
+								activationBkgColor: washStrong,
+								activationBorderColor: accent,
+								sequenceNumberColor: bg,
+								// ER
+								attributeBackgroundColorOdd: bg,
+								attributeBackgroundColorEven: surface,
+							},
+							// 폭에 맞춰 줄이면 참여자가 많은 다이어그램이 읽을 수 없게 눌립니다.
+							// 자연 크기로 그리고 넘치면 컨테이너가 가로 스크롤합니다.
+							flowchart: { useMaxWidth: false, curve: 'basis', padding: 12, nodeSpacing: 34, rankSpacing: 44 },
+							// mirrorActors 를 끄면 아래쪽 참여자 박스가 사라져 세로가 짧아집니다.
+							sequence: { useMaxWidth: false, mirrorActors: false, boxMargin: 10, actorMargin: 26, messageFontSize: 12, noteFontSize: 12 },
+							er: { useMaxWidth: false, entityPadding: 8, minEntityWidth: 80 },
+						});
+
+						for (let i = 0; i < holders.length; i++) {
+							const source = holders[i].dataset.source ?? '';
+							try {
+								const { svg } = await mermaid.render(`mermaid-${Date.now()}-${i}`, source);
+								holders[i].innerHTML = svg;
+							} catch {
+								// 문법 오류면 원문을 그대로 보여줍니다 — 빈 칸보다 낫습니다.
+								const pre = document.createElement('pre');
+								pre.textContent = source;
+								holders[i].replaceChildren(pre);
+							}
+						}
+					};
+
+					await render();
+					// 라이트/다크를 바꾸면 색을 다시 읽어 그립니다.
+					window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => void render());
+				} catch {
+					// mermaid 를 못 불러오면 원문 코드로 되돌립니다. 빈 칸으로 두지 않습니다.
+					showSource();
+				}
+			}
+		</script>
 	</body>
 </html>
