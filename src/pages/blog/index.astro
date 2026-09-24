@@ -2,13 +2,11 @@
 import BaseHead from '../../components/BaseHead.astro';
 import Footer from '../../components/Footer.astro';
 import Header from '../../components/Header.astro';
-import PostCard from '../../components/PostCard.astro';
-import TagPills from '../../components/TagPills.astro';
+import PostBrowser from '../../components/PostBrowser.astro';
 import { SITE_TITLE } from '../../consts';
-import { collectTags, getPublishedPosts } from '../../lib/posts';
+import { getPublishedPosts } from '../../lib/posts';
 
 const posts = await getPublishedPosts();
-const tags = collectTags(posts);
 ---
 
 <!doctype html>
@@ -25,7 +23,6 @@ const tags = collectTags(posts);
 						<p class="eyebrow">All Articles</p>
 						<h1>글 {posts.length}개</h1>
 					</div>
-					{tags.length > 0 && <TagPills tags={tags} total={posts.length} />}
 				</div>
 
 				{
@@ -34,16 +31,7 @@ const tags = collectTags(posts);
 							아직 글이 없습니다. <code>src/content/blog/</code> 에 마크다운 파일을 추가해 보세요.
 						</p>
 					) : (
-						<>
-							<div class="post-grid" data-post-grid>
-								{posts.map((post) => (
-									<PostCard post={post} />
-								))}
-							</div>
-							<p class="empty-state" data-filter-empty hidden>
-								해당 태그의 글이 없습니다.
-							</p>
-						</>
+						<PostBrowser posts={posts} />
 					)
 				}
 			</section>

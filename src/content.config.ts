@@ -15,6 +15,15 @@ const blog = defineCollection({
 			updatedDate: z.coerce.date().optional(),
 			heroImage: z.optional(image()),
 			tags: z.array(z.string()).default([]),
+			// 시리즈에 속한 글. id 는 consts.ts 의 SERIES 키, order 는 시리즈 안에서 읽는 순서(1부터),
+			// label 은 시리즈 목록에 보일 짧은 이름입니다(없으면 제목을 그대로 씁니다).
+			series: z
+				.object({
+					id: z.string(),
+					order: z.number().int().positive(),
+					label: z.string().optional(),
+				})
+				.optional(),
 			// true면 배포된 사이트에 노출되지 않습니다 (로컬 dev에서는 보입니다).
 			draft: z.boolean().default(false),
 		}),

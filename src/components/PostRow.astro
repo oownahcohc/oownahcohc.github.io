@@ -1,0 +1,47 @@
+---
+/**
+ * 글 목록의 한 줄. 왼쪽에 배지·제목·설명, 오른쪽에 썸네일.
+ * 파란 배지는 오른쪽 패널과 같은 카테고리 이름이고, 회색 배지는 시리즈와 초안 표시입니다.
+ */
+import { Image } from 'astro:assets';
+import CoverArt from './CoverArt.astro';
+import FormattedDate from './FormattedDate.astro';
+import { SERIES } from '../consts';
+import { categoriesOf, categoryLabel, readingTime, type Post } from '../lib/posts';
+
+interface Props {
+	post: Post;
+	/** 첫 페이지 밖의 글은 숨긴 채로 그립니다. 페이지 전환은 PostBrowser 스크립트가 합니다. */
+	hidden?: boolean;
+}
+
+const { post, hidden = false } = Astro.props;
+const { title, description, pubDate, heroImage, draft, series } = post.data;
+const categories = categoriesOf(post);
+---
+
+<article class="post-row" data-categories={categories.join(' ')} hidden={hidden}>
+	<a class="post-row-link" href={`/blog/${post.id}/`}>
+		<div class="post-row-text">
+			<div class="post-row-badges">
+				{categories.map((id) => <span class="badge badge-category">{categoryLabel(id)}</span>)}
+				{series && <span class="badge">{SERIES[series.id]?.title ?? series.id} {series.order}편</span>}
+				{draft && <span class="badge">초안</span>}
+			</div>
+			<h3 class="post-row-title">{title}</h3>
+			<p class="post-row-desc">{description}</p>
+			<p class="post-row-meta">
+				<FormattedDate date={pubDate} /> · {readingTime(post.body)}분 읽기
+			</p>
+		</div>
+		<div class="post-row-thumb">
+			{
+				heroImage ? (
+					<Image src={heroImage} width={456} height={256} alt="" />
+				) : (
+					<CoverArt seed={post.id} />
+				)
+			}
+		</div>
+	</a>
+</article>

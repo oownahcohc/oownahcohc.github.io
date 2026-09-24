@@ -1,0 +1,169 @@
+---
+/**
+ * 글 목록: 오른쪽 카테고리 체크박스 + 한 줄씩 늘어놓은 글 + 아래 페이지 번호.
+ * 정적 사이트라 글은 전부 HTML 에 그려 두고, 거르기와 페이지 나누기는 스크립트가 합니다.
+ * 상태는 주소에 남깁니다(?category=a&category=b&page=2). 새로고침·뒤로 가기·링크 공유가 그대로 됩니다.
+ */
+import PostRow from './PostRow.astro';
+import { PAGE_SIZE } from '../consts';
+import { collectCategories, type Post } from '../lib/posts';
+
+interface Props {
+	posts: Post[];
+}
+
+const { posts } = Astro.props;
+const categories = collectCategories(posts);
+---
+
+<div class="post-browser" data-post-browser data-page-size={PAGE_SIZE}>
+	<aside class="category-panel" aria-label="카테고리로 거르기">
+		<div class="category-panel-head">
+			<strong>카테고리</strong>
+			<button type="button" class="category-reset" data-category-reset disabled>초기화</button>
+		</div>
+		<ul class="category-list">
+			{
+				categories.map((category) => (
+					<li>
+						<label class="category-option">
+							<input type="checkbox" value={category.id} data-category />
+							<span class="category-check" aria-hidden="true" />
+							<span class="category-name">{category.label}</span>
+							<small>{category.count}</small>
+						</label>
+					</li>
+				))
+			}
+		</ul>
+	</aside>
+
+	<div class="post-browser-list">
+		<div class="post-list">
+			{posts.map((post, i) => <PostRow post={post} hidden={i >= PAGE_SIZE} />)}
+		</div>
+		<p class="empty-state" data-filter-empty hidden>선택한 카테고리에 해당하는 글이 없습니다.</p>
+		<nav class="pagination" aria-label="페이지" data-pagination hidden></nav>
+	</div>
+</div>
+
+<script>
+	const root = document.querySelector<HTMLElement>('[data-post-browser]');
+
+	if (root) {
+		const pageSize = Number(root.dataset.pageSize) || 8;
+		const cards = [...root.querySelectorAll<HTMLElement>('.post-row')];
+		const boxes = [...root.querySelectorAll<HTMLInputElement>('[data-category]')];
+		const nav = root.querySelector<HTMLElement>('[data-pagination]')!;
+		const empty = root.querySelector<HTMLElement>('[data-filter-empty]');
+		const reset = root.querySelector<HTMLButtonElement>('[data-category-reset]');
+		const known = new Set(boxes.map((box) => box.value));
+
+		// 페이지 번호는 다섯 개씩 끊어 보여 줍니다(1–5, 6–10 …).
+		const BLOCK = 5;
+
+		const readState = () => {
+			const params = new URLSearchParams(location.search);
+			const selected = params.getAll('category').filter((id) => known.has(id));
+			const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
+			return { selected, page };
+		};
+
+		const urlFor = (selected: string[], page: number) => {
+			const params = new URLSearchParams(location.search);
+			params.delete('category');
+			params.delete('page');
+			for (const id of selected) params.append('category', id);
+			if (page > 1) params.set('page', String(page));
+			const query = params.toString();
+			return query ? `?${query}` : location.pathname;
+		};
+
+		const writeState = (selected: string[], page: number) => {
+			history.pushState(null, '', urlFor(selected, page));
+		};
+
+		const pageButton = (page: number, label: string, options: { current?: boolean; disabled?: boolean; aria?: string } = {}) => {
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.className = 'page-button';
+			button.dataset.page = String(page);
+			button.disabled = options.disabled ?? false;
+			if (options.current) button.setAttribute('aria-current', 'page');
+			if (options.aria) button.setAttribute('aria-label', options.aria);
+			button.innerHTML = label;
+			return button;
+		};
+
+		const chevron = (direction: 'left' | 'right') =>
+			`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${
+				direction === 'left' ? 'M10 3.5 5.5 8l4.5 4.5' : 'M6 3.5 10.5 8 6 12.5'
+			}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+		const renderPagination = (current: number, pageCount: number) => {
+			nav.hidden = pageCount <= 1;
+			if (nav.hidden) return nav.replaceChildren();
+
+			const first = Math.floor((current - 1) / BLOCK) * BLOCK + 1;
+			const last = Math.min(first + BLOCK - 1, pageCount);
+			const buttons = [pageButton(current - 1, chevron('left'), { disabled: current === 1, aria: '이전 페이지' })];
+			for (let page = first; page <= last; page++) {
+				buttons.push(pageButton(page, String(page), { current: page === current, aria: `${page}페이지` }));
+			}
+			buttons.push(pageButton(current + 1, chevron('right'), { disabled: current === pageCount, aria: '다음 페이지' }));
+			nav.replaceChildren(...buttons);
+		};
+
+		const render = () => {
+			const { selected, page } = readState();
+			for (const box of boxes) box.checked = selected.includes(box.value);
+			if (reset) reset.disabled = selected.length === 0;
+
+			// 고른 카테고리 중 하나라도 걸리면 보여 줍니다(OR). 아무것도 안 골랐으면 전부.
+			const matched = cards.filter((card) => {
+				if (selected.length === 0) return true;
+				const ids = (card.dataset.categories ?? '').split(' ');
+				return selected.some((id) => ids.includes(id));
+			});
+
+			const pageCount = Math.max(1, Math.ceil(matched.length / pageSize));
+			const current = Math.min(page, pageCount);
+			const onPage = new Set(matched.slice((current - 1) * pageSize, current * pageSize));
+			for (const card of cards) card.hidden = !onPage.has(card);
+			if (empty) empty.hidden = matched.length > 0;
+
+			renderPagination(current, pageCount);
+
+			// 없는 카테고리나 범위 밖 페이지로 들어왔으면 주소를 실제 보이는 상태로 고쳐 둡니다.
+			const canonical = urlFor(selected, current);
+			if (canonical !== location.pathname + location.search && canonical !== location.search) {
+				history.replaceState(null, '', canonical);
+			}
+		};
+
+		const selectedNow = () => boxes.filter((box) => box.checked).map((box) => box.value);
+
+		root.addEventListener('change', (event) => {
+			if (!(event.target as HTMLElement).matches('[data-category]')) return;
+			writeState(selectedNow(), 1);
+			render();
+		});
+
+		reset?.addEventListener('click', () => {
+			writeState([], 1);
+			render();
+		});
+
+		nav.addEventListener('click', (event) => {
+			const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.page-button');
+			if (!button || button.disabled) return;
+			writeState(selectedNow(), Number(button.dataset.page));
+			render();
+			// 목록 머리로 올려 새 페이지를 처음부터 읽게 합니다.
+			root.scrollIntoView({ block: 'start' });
+		});
+
+		window.addEventListener('popstate', render);
+		render();
+	}
+</script>

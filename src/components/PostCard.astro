@@ -2,6 +2,7 @@
 import { Image } from 'astro:assets';
 import CoverArt from './CoverArt.astro';
 import FormattedDate from './FormattedDate.astro';
+import { SERIES } from '../consts';
 import { readingTime, type Post } from '../lib/posts';
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
 }
 
 const { post, featured = false } = Astro.props;
-const { title, description, pubDate, heroImage, tags, draft } = post.data;
+const { title, description, pubDate, heroImage, tags, draft, series } = post.data;
 const minutes = readingTime(post.body);
 ---
 
@@ -33,6 +34,7 @@ const minutes = readingTime(post.body);
 				{tags[0] && <span>{tags[0]}</span>}
 				<span><FormattedDate date={pubDate} /></span>
 				<span>{minutes}분 읽기</span>
+				{series && <span>{SERIES[series.id]?.title ?? series.id} {series.order}편</span>}
 				{draft && <span>초안</span>}
 			</div>
 			<h2>{title}</h2>
