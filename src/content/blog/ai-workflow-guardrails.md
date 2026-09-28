@@ -46,7 +46,7 @@ series:
 | `CLAUDE.md` | cwd에서 `/`까지 **모든 상위 디렉터리** (git 경계 무관) | 워크스페이스 루트에 하나 |
 | skill | cwd에서 **git 루트까지만** + `~/.claude/skills` | `~/.claude/skills`에 심볼릭 링크 |
 | `settings.json` / hook | **상속 없음.** cwd와 `~/.claude`만 | `~/.claude/settings.json` |
-| `AGENTS.md` | 읽지 않음 | `CLAUDE.md`에서 `@AGENTS.md`로 가져옴 |
+| `AGENTS.md` | 상위 어디에도 `CLAUDE.md`가 없을 때만 읽음 | `CLAUDE.md`에서 `@AGENTS.md`로 가져옴 |
 
 `CLAUDE.md`는 git 경계를 무시하고 루트까지 올라갑니다. 그래서 워크스페이스 루트에 하나만 두면
 모든 하위 레포 세션이 공통 컨텍스트를 받습니다.
@@ -59,8 +59,9 @@ skill은 다릅니다. **git 루트에서 멈춥니다.** 하위 레포는 그 �
 `settings.json`과 hook은 상속이 아예 없습니다. 상위 디렉터리를 보지 않습니다.
 그래서 가드는 선택의 여지 없이 `~/.claude`로 갔습니다. **이게 나중에 가장 큰 구멍이 됩니다.**
 
-`AGENTS.md`는 아예 읽지 않습니다. 이미 써 둔 게 있다면 `CLAUDE.md`에서 `@AGENTS.md`로
-가져오는 수밖에 없습니다.
+`AGENTS.md`는 작업 디렉터리와 그 위 어디에도 `CLAUDE.md`가 없을 때만 읽습니다. 루트에 `CLAUDE.md`를 둔
+이 구성에서는 하위 레포의 `AGENTS.md`가 읽히지 않으니, 이미 써 둔 게 있다면 `CLAUDE.md`에서 `@AGENTS.md`로
+가져와야 합니다.
 
 > 같은 디렉터리에 나란히 둬도 하나는 읽히고 하나는 안 읽힙니다.
 > 파일을 어디에 두느냐가 지켜지느냐를 정합니다.

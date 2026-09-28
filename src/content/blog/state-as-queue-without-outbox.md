@@ -75,7 +75,7 @@ flowchart LR
 | 수집 | 10분 | 폴링 주기가 돌아온 피드 | `(publisher_code, canonical_url_hash)` 행이 있음 |
 | 임베딩 | 60초 | `title_embedding IS NULL`, ACTIVE, 보존 기간 안이거나 활성 사건 소속 | `title_embedding` 값 |
 | 사건 클러스터링 | 120초 | 임베딩이 있고 `news_event_articles`에 없음 | `news_event_articles` 행 |
-| 순위·아티클·발행 | 30분 | 대기 조건 없음. 72시간 창을 매번 새로 계산 | 사건당 아티클 하나(`event_ref` UNIQUE) |
+| 순위·아티클·발행 | 30분 | 대기 조건 없음. 72시간 창을 매번 새로 계산 | 사건당 아티클 하나(코드가 지킴. DB 제약은 `(event_ref, article_version)` UNIQUE) |
 | 인물 판정 | 30분 | `person_matcher_version`이 현재 버전과 다름 | `person_matcher_version` 값 |
 
 클러스터링이 할 일을 가져가는 조회는 이렇습니다.
