@@ -1,9 +1,13 @@
 ---
-title: 'Lua 스크립트는 어디까지 원자적인가: 롤백 없는 실행, AOF의 1초, Redis와 DB를 한 트랜잭션으로 묶을 수 없는 문제'
-description: 'Redis Streams로 재고 이벤트를 남기려다 Lua 스크립트의 원자성이 정확히 무엇을 보장하는지 질문 네 개로 따져 봤습니다. 스크립트는 다른 요청을 막고 한 번에 실행되지만 오류가 나도 앞선 쓰기를 되돌리지 않고, AOF는 기본 설정에서 최대 1초를 잃을 수 있으며, Redis 차감과 DB 기록은 어떤 방식으로도 한 트랜잭션이 되지 않습니다. 글을 쓰며 Redis 공식 문서와 대조해 당시 설명 두 곳을 고쳤습니다.'
-pubDate: '2026-01-02'
+title: 'Lua 스크립트 원자성의 한계 분석: 롤백 없는 실행, AOF의 1초, Redis와 DB를 한 트랜잭션으로 묶을 수 없는 문제'
+description: '재고 차감과 이벤트 기록을 Lua 스크립트 하나로 묶으면 함께 실행된다는 점이 Redis Streams를 고른 가장 큰 이유였습니다. 그 원자성이 정확히 무엇을 보장하고 무엇은 보장하지 않는지 질문 네 개로 따져 봅니다.'
+pubDate: '2026-01-02T12:00:00+09:00'
 updatedDate: '2026-09-24'
 tags: ['redis', 'lua', 'eventual-consistency', 'kopang']
+series:
+  id: kopang
+  order: 5
+  label: '재고: Lua 스크립트 원자성의 한계 분석'
 ---
 
 [앞 글](/blog/kopang-ec-mq-choice/)에서 코팡의 재고 이벤트를 Redis Streams에 남기기로 했습니다.

@@ -17,6 +17,26 @@ export const SERIES: Record<string, { title: string; description: string }> = {
 		description:
 			'같은 수집·LLM 기반 위에서 도는 두 앱, 편집자가 착수하는 매거진과 사람 없이 발행하는 뉴스 인텔리전스를 따라갑니다.',
 	},
+	'baro-backend': {
+		title: 'baro 백엔드',
+		description:
+			'v1을 v2로 다시 만든 정치 정보 앱 백엔드를 첫 운영, 트랜잭션 안팎의 이벤트와 알림, API와 데이터 설계, 부하 테스트와 동시성 순서로 따라가고, 마지막에 v1→v2 전환을 다시 설계해 봅니다.',
+	},
+	ai: {
+		title: 'AI 워크플로',
+		description:
+			'혼자 여러 저장소를 AI 에이전트와 함께 개발하며 지침·가드·측정 체계를 세운 과정과, 검색 대신 모델이 저장소를 직접 읽게 한 사내 지식봇을 따라갑니다.',
+	},
+	kopang: {
+		title: '코팡',
+		description:
+			'선착순 커머스 서버 코팡에서 재고 차감의 동시성과 DB 동기화, 결제와 주문 상태의 정합성, 부하 테스트를 차례로 따라갑니다.',
+	},
+	'real-mysql': {
+		title: 'Real MySQL 8.0 정리',
+		description:
+			'Real MySQL 8.0을 읽으며 MySQL 아키텍처와 InnoDB 스토리지 엔진의 구조, 트랜잭션 격리 수준과 잠금, 전문 검색 인덱스를 차례로 정리합니다.',
+	},
 };
 
 // 글 목록 한 페이지에 보일 글 수.
@@ -31,11 +51,15 @@ export const CATEGORIES: { id: string; label: string; tags: string[] }[] = [
 		label: '아키텍처',
 		tags: ['architecture', 'api-design', 'schema-design', 'migration', 'legacy', 'pipeline'],
 	},
-	{ id: 'database', label: '데이터베이스', tags: ['database', 'postgresql', 'mysql', 'hikaricp'] },
+	{
+		id: 'database',
+		label: '데이터베이스',
+		tags: ['database', 'postgresql', 'mysql', 'innodb', 'index', 'real-mysql', 'hikaricp'],
+	},
 	{
 		id: 'consistency',
 		label: '동시성·정합성',
-		tags: ['concurrency', 'idempotency', 'eventual-consistency', 'transaction', 'lua'],
+		tags: ['concurrency', 'idempotency', 'eventual-consistency', 'transaction', 'lock', 'lua'],
 	},
 	{
 		id: 'messaging',

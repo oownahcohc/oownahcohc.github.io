@@ -1,8 +1,12 @@
 ---
-title: '결과가 같은데 왜 @EventListener인가'
+title: '카운터 갱신 리스너 설계: 원자성이 같은 BEFORE_COMMIT 대신 @EventListener 고르기'
 description: '카운터 갱신 리스너에 @TransactionalEventListener(BEFORE_COMMIT)이 아니라 @EventListener를 쓴 이유. 원자성이 같아도 고르지 않은 근거와, 그럼 왜 직접 호출이 아닌지까지 정리합니다.'
 pubDate: '2026-09-09'
 tags: ['spring', 'transaction', 'event']
+series:
+  id: baro-backend
+  order: 3
+  label: '카운터 갱신에 @EventListener를 고른 이유'
 ---
 
 게시글의 `comment_count`를 유지하는 리스너가 있습니다.

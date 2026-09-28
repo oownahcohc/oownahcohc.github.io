@@ -1,9 +1,13 @@
 ---
 title: '재고 동기화용 메시지 큐 고르기: RabbitMQ, Kafka, Redis Streams를 비교해 Redis Streams를 고른 이유'
-description: 'Redis 재고를 DB에 반영할 메시지 큐 후보로 RabbitMQ, Kafka, Redis Streams를 비교했습니다. 이미 쓰고 있는 Redis 안에서 Lua 스크립트로 재고 차감과 이벤트 기록을 한 번에 처리할 수 있다는 점 때문에 Redis Streams를 골랐고, 이 결정은 3주 뒤 뒤집혔습니다. 글을 쓰며 비교표를 공식 문서와 대조해 보니, RabbitMQ Streams를 빠뜨렸고 처리량 수치는 벤더 벤치마크였습니다.'
-pubDate: '2026-01-02'
+description: 'Redis로 옮긴 재고를 DB에 맞추려면 재고 변동을 전해 줄 메시지 큐가 필요했습니다. 후보를 어떤 기준으로 비교했는지, 그리고 그 비교에서 무엇을 빠뜨렸는지 정리합니다.'
+pubDate: '2026-01-02T11:00:00+09:00'
 updatedDate: '2026-09-24'
 tags: ['eventual-consistency', 'redis', 'kafka', 'rabbitmq', 'kopang']
+series:
+  id: kopang
+  order: 4
+  label: '재고: 동기화에 쓸 메시지 큐 고르기'
 ---
 
 [앞 글](/blog/kopang-ec-sync-options/)에서 코팡의 Redis 재고를 DB에 맞추는 방법으로 메시지 큐를 고르기로 했습니다.
@@ -69,7 +73,7 @@ Redis 차감과 메시지 발행이 서로 다른 시스템에 나뉘는 문제�
 
 2026-01-28에 최종안으로 올린 것은 Redis Streams가 아니라 Kafka와 Transactional Outbox 조합이었습니다.
 뒤집힌 이유는 Redis Streams의 강점으로 꼽았던 "같은 Redis 안에 있다"는 점에서 나왔습니다. 재고 이벤트까지 메모리에 두면 Redis 장애나 메모리 부족이 이벤트 유실로 바로 이어진다는 점입니다.
-그 사이에 Lua 스크립트의 원자성이 정확히 무엇을 보장하는지 따져 본 과정은 [다음 글](/blog/kopang-lua-atomicity-limits/)에, 최종 결정은 [마지막 글](/blog/kopang-transactional-outbox/)에 적었습니다.
+그 사이에 Lua 스크립트의 원자성이 정확히 무엇을 보장하는지 따져 본 과정은 [다음 글](/blog/kopang-lua-atomicity-limits/)에, 최종 결정은 재고 이야기의 [마지막 글](/blog/kopang-transactional-outbox/)에 적었습니다.
 
 ## 다시 확인한 것
 

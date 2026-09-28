@@ -1,9 +1,13 @@
 ---
 title: '주문과 재고 이벤트를 한 트랜잭션에 저장하기: Redis Streams 대신 Transactional Outbox를 고르고, 절반만 구현된 상태를 다시 확인하기'
-description: '코팡의 재고 동기화 방식을 Redis Streams에서 Kafka와 Transactional Outbox로 바꿨습니다. 주문 INSERT와 같은 트랜잭션에서 outbox에 이벤트를 남기는 부분은 구현했고, 이번에 outbox 저장이 실패하면 주문도 롤백되는 것을 테스트로 확인했습니다. 같은 테스트에서 이벤트 생성 시각이 null로 저장돼 재발행 스케줄러가 아무것도 찾지 못한다는 것도 드러났습니다. Kafka 발행은 빈 구현이고 소비자는 없어서, DB 재고를 맞추는 일은 아직 일어나지 않습니다.'
-pubDate: '2026-01-29'
+description: '주문은 DB에 저장됐는데 재고 이벤트를 보내기 전에 서버가 죽으면, 재고를 맞출 이벤트가 사라집니다. 둘이 함께 성공하거나 함께 실패하도록 재고 동기화 방식을 다시 고른 근거와, 실제로 구현된 범위를 정리합니다.'
+pubDate: '2026-01-29T10:00:00+09:00'
 updatedDate: '2026-09-24'
 tags: ['eventual-consistency', 'outbox', 'kafka', 'spring', 'kopang']
+series:
+  id: kopang
+  order: 6
+  label: '재고: 주문과 재고 이벤트를 한 트랜잭션에 저장하기'
 ---
 
 [앞 글](/blog/kopang-lua-atomicity-limits/)까지는 코팡의 Redis 재고를 DB에 맞추는 수단으로 Redis Streams를 골라 두었습니다.
@@ -64,7 +68,7 @@ flowchart TB
 
 ## 구현한 것
 
-PR #49에서 넣은 코드는 이렇습니다(현재 main 기준).
+PR #49에서 넣은 코드는 이렇습니다.
 
 ```java
 // OrderService: 주문 INSERT와 이벤트 발행이 한 트랜잭션
