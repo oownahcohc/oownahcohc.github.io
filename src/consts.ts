@@ -30,7 +30,7 @@ export const SERIES: Record<string, { title: string; description: string }> = {
 	kopang: {
 		title: '코팡',
 		description:
-			'선착순 커머스 서버 코팡에서 재고 차감의 동시성과 DB 동기화, 결제와 주문 상태의 정합성, 부하 테스트를 차례로 따라갑니다.',
+			'선착순 커머스 서버 코팡에서 재고 차감의 동시성과 DB 동기화, 결제와 주문 상태의 정합성, 부하 테스트, 선착순 대기열의 처리 순서를 차례로 따라갑니다.',
 	},
 	'real-mysql': {
 		title: 'Real MySQL 8.0 정리',

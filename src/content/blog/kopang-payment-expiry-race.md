@@ -2,7 +2,7 @@
 title: '결제 확정과 만료 취소의 경합 대응: PAYMENT_IN_PROGRESS와 상태별 만료 시간, 조건부 UPDATE를 걷어내며 잃은 것'
 description: '결제 기한이 지난 주문은 스케줄러가 취소하는데, 결제 요청과 만료 취소가 같은 주문을 동시에 건드릴 수 있습니다. 이 경합을 주문 상태와 만료 시간으로 푼 과정과, 그 풀이가 막지 못한 경우를 테스트로 다시 확인합니다.'
 pubDate: '2026-01-29T11:00:00+09:00'
-updatedDate: '2026-09-24'
+updatedDate: '2026-09-29'
 tags: ['payment', 'concurrency', 'scheduler', 'spring', 'kopang']
 series:
   id: kopang
@@ -119,6 +119,7 @@ VERIFY v1 prepare threw NullPointerException, ordered_at=null
 주문을 만들고 바로 결제를 준비하면 `NullPointerException`이 납니다. 만료를 검사하는 `orderedAt.plusMinutes(5)`에서 주문 시각이 null이기 때문입니다.
 주문 시각 필드는 2025-12-20 리팩터링([5b238b1](https://github.com/kodesalon/kopang/commit/5b238b1))에서 Hibernate의 `@CreationTimestamp`가 Spring Data의 `@CreatedDate`로 바뀌었는데, `@CreatedDate`를 채우는 `@EnableJpaAuditing`은 어느 브랜치에도 없습니다.
 그래서 이 글의 만료 로직(자동 취소 01-06, 결제 전 만료 검사 01-08)은 만들어진 뒤로 실제 주문 시각을 가지고 돈 적이 없습니다. 만료 주문을 찾는 조회도 0건이었습니다. 이 기능들에는 자동화 테스트가 없어서 드러나지 않았습니다.
+게다가 스케줄링을 켜는 `@EnableScheduling`은 2026-03-22에야 들어가서, 그 전에는 만료 취소 스케줄러가 아예 돌지 않았습니다.
 운영 DB 컬럼에 기본값이 있었는지는 확인하지 못했습니다. 다만 JPA가 null을 명시해 INSERT하므로 기본값이 있어도 적용되지 않았을 가능성이 큽니다.
 
 이하 테스트는 주문 시각을 직접 채워 넣고 진행했습니다.
@@ -167,12 +168,31 @@ VERIFY v3 after scheduler cancel = CANCELLED,
 - `@EnableJpaAuditing`을 켜고, 만료 로직에 주문 시각이 들어간 통합 테스트를 둡니다.
 - 서버를 늘린다면 스케줄러에 분산 락을 걸고, 재고 복구는 실제로 취소된 주문에 대해서만 합니다.
 
+## 이후 고친 것
+
+위 세 가지 중 앞의 두 가지와, 재고 복구를 실제로 취소한 주문에만 하는 것을 고쳤습니다. 코드와 테스트는 [PR #59](https://github.com/kodesalon/kopang/pull/59)에 있습니다.
+
+- 상태 변경은 읽어 둔 상태를 조건으로 UPDATE하고, 영향받은 행이 없으면 409로 거절합니다. 결제 준비는 `PENDING`일 때만, 결제 확정은 `PAYMENT_IN_PROGRESS`일 때만 바뀝니다.
+- 도메인도 결제 진행 중인 주문의 결제 준비를 막습니다.
+- 만료 일괄 취소는 아직 `PENDING`인 주문만 취소하고, 실제로 취소한 주문의 재고만 되돌립니다.
+- `@EnableJpaAuditing`을 켜서 주문 시각이 채워집니다.
+
+위에서 손으로 재현한 경우를 테스트로 만들어, 고치기 전 코드와 고친 뒤 코드에서 돌렸습니다.
+
+| 시나리오 | 고치기 전 | 고친 뒤 |
+| --- | --- | --- |
+| 같은 주문에 결제 요청 2개 동시 | PG 승인 2회 | PG 승인 1회, 한 요청은 거절 |
+| 스케줄러가 먼저 취소한 뒤 사용자 요청의 늦은 UPDATE | 결제 중으로 되살아남 | 바뀌지 않음(취소 유지) |
+| 만료 일괄 취소 중 결제를 시작한 주문 | 함께 취소, 재고 2개 복구 | 건너뜀, 재고 1개 복구 |
+
+서버를 여러 대로 늘릴 때의 스케줄러 분산 락은 아직 없습니다.
+
 ## 다시 확인한 것
 
 | 당시 주장 | 확인 결과 | 근거 |
 | --- | --- | --- |
-| `PAYMENT_IN_PROGRESS`와 조건부 UPDATE로 중복 결제 방어 | 조건부 UPDATE는 01-08에 삭제. 지금은 두 번째 요청도 PG 승인까지 감 | 검증 테스트 v2, [5905c55](https://github.com/kodesalon/kopang/commit/5905c55) |
+| `PAYMENT_IN_PROGRESS`와 조건부 UPDATE로 중복 결제 방어 | 조건부 UPDATE는 01-08에 삭제되어 두 번째 요청도 PG 승인까지 감. PR #59에서 되살림 | 검증 테스트 v2, [5905c55](https://github.com/kodesalon/kopang/commit/5905c55), [PR #59](https://github.com/kodesalon/kopang/pull/59) |
 | 상태별 만료 시간(5분+5초, 15분) | 코드에 있음 | `Order.calculatePendingCutoffTime`, `calculateInProgressCutoffTime` |
 | 만료 시간 분리로 동시성 이슈를 근본적으로 제거 | 경합 시간대를 좁힘. 상태 조건 없는 UPDATE라 겹치면 취소가 덮임 | 검증 테스트 v3 |
 | 복잡한 동시성 제어 없이 결제 정합성 보장 | 성립하지 않음 | 검증 테스트 v1~v3 |
-| 만료 주문 자동 취소 | 주문 시각이 null이라 대상 0건, 결제 준비는 NPE | 검증 테스트 v1, [5b238b1](https://github.com/kodesalon/kopang/commit/5b238b1) |
+| 만료 주문 자동 취소 | 주문 시각이 null이라 대상 0건, 결제 준비는 NPE. PR #59에서 주문 시각을 채움 | 검증 테스트 v1, [5b238b1](https://github.com/kodesalon/kopang/commit/5b238b1), [PR #59](https://github.com/kodesalon/kopang/pull/59) |

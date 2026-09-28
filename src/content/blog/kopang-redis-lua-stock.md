@@ -2,7 +2,7 @@
 title: '분산 락 없이 선착순 재고 차감하기: Lua 스크립트로 원자적 차감, DB 재고 갱신은 요청 흐름에서 분리'
 description: '비관적 락 대신 분산 락을 고르자, 리뷰에서 락을 Redis로 옮겨도 트랜잭션 전체를 잠그는 구조는 같다는 지적을 받았습니다. 그 뒤 일주일 동안 락 범위를 재고 차감 하나로 줄여 간 과정을 정리합니다.'
 pubDate: '2025-12-31'
-updatedDate: '2026-09-24'
+updatedDate: '2026-09-29'
 tags: ['concurrency', 'redis', 'lua', 'mysql', 'kopang']
 series:
   id: kopang
@@ -170,7 +170,7 @@ for (Warehouse warehouse : warehouses) {   // 회원 주소와 가까운 순
 
 1. Redis 차감은 DB 트랜잭션 밖에서 일어납니다. Redis에서 재고를 줄인 뒤 주문 INSERT가 커밋되기 전에 프로세스가 죽으면, 보상 코드가 실행되지 않아 Redis 재고만 줄어든 채 남습니다. 초과 판매가 아니라 덜 파는 쪽으로 틀어집니다.
 2. DB의 `stock.quantity`는 요청 흐름에서 더 이상 갱신되지 않습니다. 이 숫자를 메시지 큐로 맞추려고 Outbox 테이블까지는 만들었지만, 메시지를 보내는 쪽은 아직 빈 구현이고 소비하는 쪽은 없습니다. 이 과정은 [Eventual Consistency 글](/blog/kopang-ec-sync-options/)에서 이어서 다룹니다.
-3. Redis는 순서를 보장하지 않습니다. 당시 이슈에는 "Redis가 앞단에서 트래픽을 막고 순서를 보장한다"고 적었는데, 틀린 설명이었습니다. Lua 스크립트가 보장하는 것은 원자성(초과 판매 없음)이지 도착 순서가 아닙니다. 2026년 3월에 50명 동시 요청으로 재 보니, 요청을 보낸 순서와 주문 번호 순서가 뒤바뀐 쌍이 1,225쌍 중 378쌍(30.9%)이었습니다([PR #56](https://github.com/kodesalon/kopang/pull/56)). Tomcat 스레드가 요청을 집어 드는 순서부터 도착 순서와 다르기 때문입니다.
+3. Redis는 순서를 보장하지 않습니다. 당시 이슈에는 "Redis가 앞단에서 트래픽을 막고 순서를 보장한다"고 적었는데, 틀린 설명이었습니다. Lua 스크립트가 보장하는 것은 원자성(초과 판매 없음)이지 도착 순서가 아닙니다. 2026년 3월에 50명 동시 요청으로 재 보니, 요청을 보낸 순서와 주문 번호 순서가 뒤바뀐 쌍이 1,225쌍 중 378쌍(30.9%)이었습니다([PR #56](https://github.com/kodesalon/kopang/pull/56)). 다만 이 50명은 1~2ms 안에 동시에 보내서 절반 넘는 쌍은 누가 먼저인지 정할 수 없었고, 요청 사이에 1ms만 간격을 둬도 순서가 지켜졌습니다(역전 0~0.2%). 뒤바뀜은 사실상 동시에 들어온 요청 사이에서만 생깁니다. 이 측정과 그 뒤에 붙인 대기열 이야기는 [대기열 글](/blog/kopang-queue-fairness-remeasure/)에 이어서 적었습니다.
 4. Redis 장애는 다루지 않았습니다. Redis 복제는 비동기라, 차감 직후 복제 전에 주 노드가 죽으면 그 차감이 사라질 수 있습니다. 재고의 1차 저장소가 Redis인 이상 이 위험은 그대로 남습니다.
 
 이 전환으로 응답 시간이 얼마나 줄었는지는 당시 원자료를 찾지 못해 이 글에서 다루지 않았습니다.
@@ -183,5 +183,5 @@ for (Warehouse warehouse : warehouses) {   // 회원 주소와 가까운 순
 | Lua 스크립트로 원자적 차감, 음수 재고 방지 | 맞음 | [47e4f4c](https://github.com/kodesalon/kopang/commit/47e4f4c), PR #30 |
 | 락 없이 조회 후 갱신하자 DB 잔고 841 | 코드 구조는 확인. 수치는 당시 기록이며 재현 안 함 | [0eaa1df](https://github.com/kodesalon/kopang/commit/0eaa1df), 이슈 #19 코멘트(2025-12-23) |
 | 원자적 UPDATE로 해결, 성능과 정합성 모두 확보 | 코드는 확인. 성능·정합성 수치는 남아 있지 않음 | [dc0a467](https://github.com/kodesalon/kopang/commit/dc0a467) |
-| Redis가 앞단에서 순서를 보장 | 틀림. 원자성만 보장하고 순서는 30.9% 역전 | PR #56 |
+| Redis가 앞단에서 순서를 보장 | 틀림. 원자성만 보장함. 다만 역전은 같은 ms에 몰린 요청 사이에서만 생기고, 1ms 간격이면 0~0.2% | PR #56, [대기열 글](/blog/kopang-queue-fairness-remeasure/)의 재측정 |
 | Redis를 1차 저장소로, DB는 나중에 맞춤 | 요청 흐름 변경은 맞음. DB 재고를 맞추는 쪽은 미구현 | [2d4c592](https://github.com/kodesalon/kopang/commit/2d4c592), `MockKafkaMessageProducer` |

@@ -2,7 +2,7 @@
 title: '주문과 재고 이벤트를 한 트랜잭션에 저장하기: Redis Streams 대신 Transactional Outbox를 고르고, 절반만 구현된 상태를 다시 확인하기'
 description: '주문은 DB에 저장됐는데 재고 이벤트를 보내기 전에 서버가 죽으면, 재고를 맞출 이벤트가 사라집니다. 둘이 함께 성공하거나 함께 실패하도록 재고 동기화 방식을 다시 고른 근거와, 실제로 구현된 범위를 정리합니다.'
 pubDate: '2026-01-29T10:00:00+09:00'
-updatedDate: '2026-09-24'
+updatedDate: '2026-09-29'
 tags: ['eventual-consistency', 'outbox', 'kafka', 'spring', 'kopang']
 series:
   id: kopang
@@ -172,13 +172,15 @@ VERIFY relay query (cutoff = now+1d) size = 0
 4. 소비자가 `event_id`로 중복을 걸러 멱등하게 반영하도록 만듭니다.
 5. 마지막으로 Redis 차감과 DB 사이의 공백은 주문 테이블로 재고를 다시 계산하는 대사 작업으로 메웁니다. 주문 행은 이미 DB 트랜잭션으로 지켜지고 있으므로, 재고 숫자는 주문으로부터 다시 계산할 수 있습니다.
 
+이 중 1번은 결제 경합을 고친 [PR #59](https://github.com/kodesalon/kopang/pull/59)에서 했습니다. 이제 `created_at`이 채워져 재발행 스케줄러가 대상을 찾는데, 2번이 없어서 같은 이벤트를 1분마다 다시 보냅니다. 지금은 발행이 빈 메서드라 부작용이 없지만, Kafka 발행을 구현할 때 2번을 함께 넣어야 합니다.
+
 ## 다시 확인한 것
 
 | 당시 주장 | 확인 결과 | 근거 |
 | --- | --- | --- |
 | 주문이 저장되면 재고 이벤트도 반드시 함께 저장 | 맞음. outbox 실패 시 주문도 롤백 | `OrderStockEventListener`(`BEFORE_COMMIT`), 검증 테스트 |
 | Kafka로 발행, 소비자가 DB 재고 반영 | 미구현. 발행은 빈 메서드, 소비자 없음 | `MockKafkaMessageProducer`, `build.gradle` |
-| 발행 실패 이벤트를 스케줄러가 재발행 | 동작하지 않음. `created_at`이 null이라 대상 0건 | 검증 테스트, `@EnableJpaAuditing` 부재 |
+| 발행 실패 이벤트를 스케줄러가 재발행 | 동작하지 않음. `created_at`이 null이라 대상 0건. PR #59 이후에는 대상을 찾지만 발행 표시가 없어 매분 다시 보냄 | 검증 테스트, `@EnableJpaAuditing` 부재, [PR #59](https://github.com/kodesalon/kopang/pull/59) |
 | Saga 패턴으로 원자성 보장 | 과장. 보상은 프로세스 안의 Redis 되돌리기 하나 | `PurchaseOrchestrator.reserve` |
 | Redis 비동기 복제로 인한 유실 때문에 Streams 기각 | 이벤트 저장소로서는 타당. 다만 재고 자체는 여전히 Redis라 같은 위험이 남음 | `WAIT` 문서, 현재 구조 |
 | 어떤 장애에서도 재고 데이터 유실 없음, DB 정합성 100% | 성립하지 않음. 위 "아직 남은 것" 표 참고 | 코드, 검증 테스트 |
