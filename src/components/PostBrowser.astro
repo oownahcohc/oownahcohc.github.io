@@ -3,9 +3,10 @@
  * 글 목록: 오른쪽 카테고리 체크박스 + 한 줄씩 늘어놓은 글 + 아래 페이지 번호.
  * 정적 사이트라 글은 전부 HTML 에 그려 두고, 거르기와 페이지 나누기는 스크립트가 합니다.
  * 상태는 주소에 남깁니다(?category=a&category=b&page=2). 새로고침·뒤로 가기·링크 공유가 그대로 됩니다.
+ * ?series=kopang 처럼 시리즈를 지정하면 그 시리즈 글만 1편부터 읽는 순서대로 보여 줍니다.
  */
 import PostRow from './PostRow.astro';
-import { PAGE_SIZE } from '../consts';
+import { PAGE_SIZE, SERIES } from '../consts';
 import { collectCategories, type Post } from '../lib/posts';
 
 interface Props {
@@ -14,6 +15,15 @@ interface Props {
 
 const { posts } = Astro.props;
 const categories = collectCategories(posts);
+
+// 목록에 글이 있는 시리즈만 이름·소개·편수를 스크립트에 넘깁니다.
+const seriesMeta: Record<string, { title: string; description: string; count: number }> = {};
+for (const post of posts) {
+	const id = post.data.series?.id;
+	if (!id || !SERIES[id]) continue;
+	seriesMeta[id] ??= { ...SERIES[id], count: 0 };
+	seriesMeta[id].count += 1;
+}
 ---
 
 <div class="post-browser" data-post-browser data-page-size={PAGE_SIZE}>
@@ -39,6 +49,17 @@ const categories = collectCategories(posts);
 	</aside>
 
 	<div class="post-browser-list">
+		<div class="series-filter" data-series-filter data-series-meta={JSON.stringify(seriesMeta)} hidden>
+			<div class="series-filter-text">
+				<div class="series-filter-head">
+					<span class="series-filter-kicker">시리즈</span>
+					<strong data-series-title></strong>
+					<span class="series-filter-count" data-series-count></span>
+				</div>
+				<p data-series-desc></p>
+			</div>
+			<a class="series-filter-clear" href="?" data-series-clear>전체 글 보기</a>
+		</div>
 		<div class="post-list">
 			{posts.map((post, i) => <PostRow post={post} hidden={i >= PAGE_SIZE} />)}
 		</div>
@@ -58,6 +79,11 @@ const categories = collectCategories(posts);
 		const empty = root.querySelector<HTMLElement>('[data-filter-empty]');
 		const reset = root.querySelector<HTMLButtonElement>('[data-category-reset]');
 		const known = new Set(boxes.map((box) => box.value));
+		const list = root.querySelector<HTMLElement>('.post-list')!;
+		const banner = root.querySelector<HTMLElement>('[data-series-filter]');
+		const seriesMeta = new Map<string, { title: string; description: string; count: number }>(
+			Object.entries(JSON.parse(banner?.dataset.seriesMeta ?? '{}')),
+		);
 
 		// 페이지 번호는 다섯 개씩 끊어 보여 줍니다(1–5, 6–10 …).
 		const BLOCK = 5;
@@ -66,21 +92,26 @@ const categories = collectCategories(posts);
 			const params = new URLSearchParams(location.search);
 			const selected = params.getAll('category').filter((id) => known.has(id));
 			const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
-			return { selected, page };
+			const seriesParam = params.get('series');
+			const series = seriesParam && seriesMeta.has(seriesParam) ? seriesParam : null;
+			return { selected, page, series };
 		};
 
-		const urlFor = (selected: string[], page: number) => {
+		const urlFor = (selected: string[], page: number, series: string | null) => {
 			const params = new URLSearchParams(location.search);
+			params.delete('series');
 			params.delete('category');
 			params.delete('page');
+			if (series) params.set('series', series);
 			for (const id of selected) params.append('category', id);
 			if (page > 1) params.set('page', String(page));
 			const query = params.toString();
 			return query ? `?${query}` : location.pathname;
 		};
 
-		const writeState = (selected: string[], page: number) => {
-			history.pushState(null, '', urlFor(selected, page));
+		// 시리즈는 따로 바꾸지 않으면 지금 주소의 것을 그대로 둡니다.
+		const writeState = (selected: string[], page: number, series = readState().series) => {
+			history.pushState(null, '', urlFor(selected, page, series));
 		};
 
 		const pageButton = (page: number, label: string, options: { current?: boolean; disabled?: boolean; aria?: string } = {}) => {
@@ -114,13 +145,32 @@ const categories = collectCategories(posts);
 			nav.replaceChildren(...buttons);
 		};
 
+		const renderSeries = (series: string | null) => {
+			const meta = series ? seriesMeta.get(series) : undefined;
+			if (!banner) return;
+			banner.hidden = !meta;
+			if (!meta) return;
+			banner.querySelector('[data-series-title]')!.textContent = meta.title;
+			banner.querySelector('[data-series-count]')!.textContent = `${meta.count}편`;
+			banner.querySelector('[data-series-desc]')!.textContent = meta.description;
+		};
+
 		const render = () => {
-			const { selected, page } = readState();
+			const { selected, page, series } = readState();
 			for (const box of boxes) box.checked = selected.includes(box.value);
 			if (reset) reset.disabled = selected.length === 0;
+			renderSeries(series);
+
+			// 시리즈를 골랐으면 그 시리즈 글만 1편부터 읽는 순서대로 세웁니다. 아니면 원래(최신순) 순서.
+			const pool = series
+				? cards
+						.filter((card) => card.dataset.series === series)
+						.sort((a, b) => Number(a.dataset.seriesOrder) - Number(b.dataset.seriesOrder))
+				: cards;
+			list.append(...pool, ...cards.filter((card) => !pool.includes(card)));
 
 			// 고른 카테고리 중 하나라도 걸리면 보여 줍니다(OR). 아무것도 안 골랐으면 전부.
-			const matched = cards.filter((card) => {
+			const matched = pool.filter((card) => {
 				if (selected.length === 0) return true;
 				const ids = (card.dataset.categories ?? '').split(' ');
 				return selected.some((id) => ids.includes(id));
@@ -134,8 +184,8 @@ const categories = collectCategories(posts);
 
 			renderPagination(current, pageCount);
 
-			// 없는 카테고리나 범위 밖 페이지로 들어왔으면 주소를 실제 보이는 상태로 고쳐 둡니다.
-			const canonical = urlFor(selected, current);
+			// 없는 카테고리·시리즈나 범위 밖 페이지로 들어왔으면 주소를 실제 보이는 상태로 고쳐 둡니다.
+			const canonical = urlFor(selected, current, series);
 			if (canonical !== location.pathname + location.search && canonical !== location.search) {
 				history.replaceState(null, '', canonical);
 			}
@@ -151,6 +201,12 @@ const categories = collectCategories(posts);
 
 		reset?.addEventListener('click', () => {
 			writeState([], 1);
+			render();
+		});
+
+		banner?.querySelector('[data-series-clear]')?.addEventListener('click', (event) => {
+			event.preventDefault();
+			writeState(selectedNow(), 1, null);
 			render();
 		});
 

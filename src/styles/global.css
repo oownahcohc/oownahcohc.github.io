@@ -461,6 +461,57 @@ main {
 	grid-area: list;
 	min-width: 0;
 }
+/* ?series= 로 들어왔을 때 목록 위에 붙는 띠. 글 안의 시리즈 상자와 같은 모양입니다. */
+.series-filter {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 48px;
+	padding: 20px 24px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	background: var(--surface);
+}
+.series-filter[hidden] {
+	display: none;
+}
+.series-filter-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 10px;
+	font-size: 16px;
+}
+.series-filter-kicker {
+	color: var(--accent);
+	font-size: 13px;
+	font-weight: 700;
+}
+.series-filter-count {
+	color: var(--fg-muted);
+	font-size: 13px;
+}
+.series-filter p {
+	margin: 8px 0 0;
+	color: var(--fg-muted);
+	font-size: 14px;
+	line-height: 1.6;
+}
+.series-filter-clear {
+	flex: none;
+	padding: 6px 12px;
+	border-radius: 999px;
+	background: var(--bg);
+	color: var(--fg-muted);
+	font-size: 13px;
+	font-weight: 600;
+	white-space: nowrap;
+	text-decoration: none;
+}
+.series-filter-clear:hover {
+	color: var(--fg);
+}
 .category-panel {
 	grid-area: panel;
 	position: sticky;
@@ -1164,6 +1215,11 @@ main {
 	}
 	.series-pager-next {
 		grid-column: 1;
+	}
+	.series-filter {
+		flex-direction: column;
+		gap: 12px;
+		padding: 16px;
 	}
 	.site-header {
 		min-height: 64px;

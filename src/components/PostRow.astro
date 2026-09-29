@@ -20,7 +20,13 @@ const { title, description, pubDate, heroImage, draft, series } = post.data;
 const categories = categoriesOf(post);
 ---
 
-<article class="post-row" data-categories={categories.join(' ')} hidden={hidden}>
+<article
+	class="post-row"
+	data-categories={categories.join(' ')}
+	data-series={series?.id}
+	data-series-order={series?.order}
+	hidden={hidden}
+>
 	<a class="post-row-link" href={`/blog/${post.id}/`}>
 		<div class="post-row-text">
 			<div class="post-row-badges">
