@@ -2,7 +2,7 @@
 title: '앱 로그가 비어 있는 장애 추적하기'
 description: '「글이 안 써져요」 제보를 받고 앱 로그와 APM을 열었는데 통째로 비어 있었습니다. 로그가 남지 않은 장애의 원인을 찾아간 과정과, 두 원인 모두 「로그를 더 남기자」로는 풀리지 않았던 이유를 정리합니다.'
 pubDate: '2026-09-06T10:00:00+09:00'
-updatedDate: '2026-09-23'
+updatedDate: '2026-09-29'
 tags: ['observability', 'logging', 'aws', 'waf', 'spring']
 series:
   id: baro-backend
@@ -238,7 +238,7 @@ rule_action_override {
 ```
 
 `rule_action_override`는 **룰 단위**입니다. 같은 룰그룹의 `CrossSiteScripting_BODY` 등은 그대로 Block입니다.
-**룰그룹을 통째로 끄는 것과는 다릅니다.**
+**룰그룹을 통째로 끄는 것과는 다릅니다.** 다만 업로드 경로는 30분 뒤 두 룰그룹의 본문 검사에서 통째로 뺐습니다. 이유는 아래에 적었습니다.
 
 크기 상한이 사라지는 것도 아닙니다. nginx `client_max_body_size 50m`와
 Spring `max-request-size 50MB` / 파일당 10MB가 그대로 남아 있습니다.
@@ -254,6 +254,15 @@ Spring `max-request-size 50MB` / 파일당 10MB가 그대로 남아 있습니다
 
 경로를 하나씩 추가하는 방식은 이미 두 번 했고 **세 번째 버그가 났습니다.**
 근본 원인은 "8KB를 넘는 multipart를 쓰는 경로"를 **전수로 훑지 않고 신고 들어온 경로만 추가해 온 것**입니다.
+
+### 크기 룰만 끄자 XSS 룰이 사진을 막았다
+
+크기 룰을 Count로 내린 30분 뒤, 실제 사진(JPEG 3.6MB) 8장을 올려 봤습니다. 7장은 앱까지 갔고 1장은 `CrossSiteScripting_BODY`에 막혔습니다. 막힌 사진은 세 번 모두 막혔고, 통과한 사진은 세 번 모두 통과했습니다.
+사진 앞부분에 `<q`, `<A`처럼 태그로 보이는 바이트가 우연히 들어가면, 그 사진은 몇 번을 다시 올려도 올라가지 않습니다. WAF에서 끝나니 앱 로그도 남지 않습니다. 이번에 찾아낸 실패와 같은 모양입니다.
+
+본문을 잘못 막을 수 있는 룰은 이것만이 아니었습니다. `CommonRuleSet`에는 `GenericLFI_BODY`, `GenericRFI_BODY` 같은 룰이 더 있고, `KnownBadInputsRuleSet`에도 `Log4JRCE_BODY` 같은 본문 검사가 있습니다.
+룰을 하나씩 끄는 것은 경로를 하나씩 더하던 것과 같은 실수라서, **업로드 경로는 두 룰그룹의 본문 검사에서 통째로 뺐습니다.**
+대상 경로는 신고된 것만이 아니라, multipart를 받는 코드를 `grep -rn MULTIPART_FORM_DATA_VALUE`로 전수 조사해 정했습니다.
 
 ### 면제 목록을 하나로 합쳤다
 

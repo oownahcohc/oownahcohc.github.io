@@ -145,7 +145,7 @@ public ReservationOrderResult reserve(Long memberNo, Long productNo,
 ```
 
 DB 재고 차감과 주문 생성을 묶던 `PurchaseService`는 지웠습니다. 요청 경로에서 DB가 하는 일은 주문 INSERT 하나가 됐고, DB의 재고 숫자는 나중에 따로 맞추기로 했습니다(Eventual Consistency).
-이 변경은 2025-12-31에 main에 들어갔습니다([PR #24](https://github.com/kodesalon/kopang/pull/24)).
+이 변경은 2025-12-31에 [PR #24](https://github.com/kodesalon/kopang/pull/24)로 작업 브랜치에 합쳐졌습니다.
 
 두 번째 질문(창고 여러 개)에는 2026년 1월에 이렇게 답했습니다. 분기는 Java에 두고, 창고마다 Redis 키를 따로 두어 가까운 창고부터 Lua 차감을 차례로 시도합니다.
 창고 하나에 대한 차감은 여전히 원자적이고, 처음 성공한 창고에서 멈춥니다.
