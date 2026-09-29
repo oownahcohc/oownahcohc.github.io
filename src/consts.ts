@@ -37,6 +37,11 @@ export const SERIES: Record<string, { title: string; description: string }> = {
 		description:
 			'Real MySQL 8.0을 읽으며 MySQL 아키텍처와 InnoDB 스토리지 엔진의 구조, 트랜잭션 격리 수준과 잠금, 전문 검색 인덱스를 차례로 정리합니다.',
 	},
+	redis: {
+		title: 'Redis 공부',
+		description:
+			'Redis 한 대로 시작했을 때 부딪히는 질문을 따라 복제와 메모리 관리, 샤딩, Sentinel과 Cluster의 장애 조치를 차례로 정리하고, 컬렉션 자료구조를 어디에 쓰는지 정리합니다.',
+	},
 };
 
 // 글 목록 한 페이지에 보일 글 수.
@@ -54,7 +59,18 @@ export const CATEGORIES: { id: string; label: string; tags: string[] }[] = [
 	{
 		id: 'database',
 		label: '데이터베이스',
-		tags: ['database', 'postgresql', 'mysql', 'innodb', 'index', 'real-mysql', 'hikaricp'],
+		tags: [
+			'database',
+			'postgresql',
+			'mysql',
+			'innodb',
+			'index',
+			'real-mysql',
+			'hikaricp',
+			'replication',
+			'sharding',
+			'data-structure',
+		],
 	},
 	{
 		id: 'consistency',
@@ -75,7 +91,17 @@ export const CATEGORIES: { id: string; label: string; tags: string[] }[] = [
 	{
 		id: 'operations',
 		label: '운영·관측',
-		tags: ['observability', 'logging', 'aws', 'waf', 'reliability', 'scheduler', 'notification', 'fcm'],
+		tags: [
+			'observability',
+			'logging',
+			'aws',
+			'waf',
+			'reliability',
+			'high-availability',
+			'scheduler',
+			'notification',
+			'fcm',
+		],
 	},
 ];
 
