@@ -25,7 +25,52 @@ series:
 
 1. 진입: `POST /api/v2/events/{eventId}/queue`가 토큰을 발급하고 Redis ZSet에 넣습니다. 점수는 진입 시각(ms)입니다.
 2. 활성화: 워커가 대기열 앞쪽 400명을 꺼내 활성 Set에 넣습니다.
-3. 주문: 클라이언트는 0.5초마다 상태를 조회하다가 ACTIVE가 되면, 그 토큰을 붙여 기존 주문 API를 호출합니다.
+3. 상태 조회와 주문: 클라이언트는 0.5초마다 상태를 조회하다가 ACTIVE가 되면, 그 토큰을 붙여 기존 주문 API를 호출합니다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as 클라이언트
+    participant A as 코팡 API
+    participant R as Redis
+    participant W as 대기열 워커
+
+    Note over C,W: ① 진입
+    C->>A: POST /api/v2/events/{eventId}/queue
+    A->>R: SET queue:member:{eventId}:{memberNo} NX
+    alt 이미 진입한 회원
+        A-->>C: 409 Conflict
+    else 처음 진입
+        A->>R: ZADD queue:event:{eventId} (점수 = 진입 시각 ms)
+        A->>R: HSET queue:entry:{token}, SADD queue:active_events
+        A->>R: ZRANK로 순번 조회
+        A-->>C: 202 Accepted (토큰, 순번)
+    end
+
+    Note over C,W: ② 활성화 (워커는 0.5초마다 실행, 이벤트 락 2초)
+    W->>R: SMEMBERS queue:active_events
+    W->>R: SET queue:lock:{eventId} NX EX 2
+    W->>R: 대기열 앞쪽 400명을 활성 Set으로 옮김
+    Note right of R: ZPOPMIN queue:event:{eventId}<br/>→ SADD queue:active:{eventId}
+
+    Note over C,W: ③ 상태 조회와 주문
+    loop 0.5초마다, ACTIVE가 될 때까지
+        C->>A: GET /api/v2/events/{eventId}/queue/{token}/status
+        A->>R: ZRANK(대기열), SISMEMBER(활성 Set)
+        A-->>C: WAITING / ACTIVE / EXPIRED
+    end
+    C->>A: POST /api/v1/orders (헤더 X-Queue-Token)
+    A->>R: HGET queue:entry:{token}, SISMEMBER queue:active:{eventId}
+    alt 활성 토큰
+        A->>A: v1 주문 흐름 (Lua 재고 차감 → 주문 저장)
+        A-->>C: 201 Created (주문 번호)
+    else 모르는 토큰이거나 활성이 아님
+        A-->>C: 401 Unauthorized
+    end
+    Note over C,A: 헤더 없이 보낸 주문은 토큰 검사 없이 v1 주문으로 처리
+```
+
+주문 API는 `X-Queue-Token` 헤더가 있을 때만 토큰을 검사합니다. 헤더 없이 보낸 주문은 상시 주문으로 보고 그대로 처리하므로, 이벤트 상품도 대기열을 거치지 않고 주문할 수 있습니다.
 
 v2를 만들 때의 검증 결과는 "배치 간 역전 0%"였습니다. 앞 배치 사람이 뒤 배치 사람보다 늦게 주문한 쌍이 없었다는 뜻입니다.
 그런데 v1은 보낸 시각과 주문 번호를 비교했고, v2는 대기열 순번과 주문 번호를 비교했습니다. 기준이 달라서 두 숫자는 나란히 놓을 수 없습니다.
