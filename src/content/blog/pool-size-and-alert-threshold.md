@@ -72,16 +72,19 @@ flowchart LR
 여기서 한도는 DB 서버가 동시에 받아 주는 연결 수, PostgreSQL의 `max_connections`를 말합니다.
 Spring에서 설정하는 Hikari 풀 크기와는 다른 숫자인데, 둘의 차이는 이 절 뒤에서 따로 정리했습니다.
 
-처음에는 한도를 계산으로 추정했습니다. RDS PostgreSQL의 `max_connections` 기본값은 다음 식으로 정해집니다.
+처음에는 AWS 공식 문서의 [최대 데이터베이스 연결 수](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.MaxConnections) 표에 나온 RDS PostgreSQL의 `max_connections` 기본값 공식을 보고 한도를 추정했습니다.
 
 ```
 LEAST({DBInstanceClassMemory / 9531392}, 5000)
 ```
 
+이 식은 DB 프로세스에 제공되는 메모리를 AWS가 정한 계수 9,531,392로 나눈 값과 5,000 중 작은 쪽을 기본 연결 한도로 사용한다는 뜻입니다.
+9,531,392는 한도를 계산하기 위한 계수이지, 커넥션 하나에 그만큼의 메모리를 고정으로 할당한다는 뜻은 아닙니다. AWS 문서에는 이 계수를 선택한 이유까지는 나와 있지 않습니다.
+
 `db.t4g.micro`의 메모리는 1 GiB이니 1,073,741,824 ÷ 9,531,392 ≈ 112가 나옵니다.
 그런데 실제로는 73에서 거절당했으니 이 추정은 틀렸습니다. DB에 직접 조회해 보니 81이었습니다.
 
-차이는 `DBInstanceClassMemory`가 물리 메모리가 아니라는 데서 옵니다.
+차이는 [`DBInstanceClassMemory`](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ParamValuesRef.html)가 물리 메모리가 아니라는 데서 옵니다.
 RDS가 OS와 자기 몫을 떼고 DB 엔진에 넘겨준 양입니다. 이 값을 따로 보여 주는 곳은 없지만,
 같은 변수를 쓰는 다른 파라미터로 거꾸로 구할 수 있습니다. `shared_buffers`의 기본값이 `{DBInstanceClassMemory/32768}`(8kB 페이지 단위)입니다.
 
@@ -105,7 +108,7 @@ shared_buffers = 23,570 페이지 (× 8kB = 184 MiB)
 PostgreSQL 문서는 "데이터베이스 서버에 동시에 연결할 수 있는 최대 수"라고 정의합니다. 알아 둘 점은 세 가지입니다.
 
 - 데이터베이스가 아니라 서버(인스턴스) 단위입니다. 그래서 같은 인스턴스의 prd DB와 dev DB가 81을 나눠 씁니다.
-- 연결 하나가 DB 서버의 프로세스 하나입니다. PostgreSQL은 접속이 들어올 때마다 전용 백엔드 프로세스를 띄웁니다. 한도가 메모리에 비례하는 이유가 이것이고, RDS 기본식은 엔진 메모리 약 9.1 MiB(9,531,392 B)당 연결 1개로 잡습니다.
+- 연결 하나가 DB 서버의 프로세스 하나입니다. PostgreSQL은 접속이 들어올 때마다 전용 백엔드 프로세스를 띄웁니다. 연결은 메모리를 사용하므로 RDS의 기본 한도도 DB 프로세스에 제공되는 메모리에 비례해 정해집니다. 다만 공식의 9,531,392는 기본값 산정 계수이며, 커넥션 하나가 실제로 사용하는 고정 메모리 크기는 아닙니다.
 - 서버를 시작할 때만 정해집니다. 바꾸려면 파라미터를 고치고 DB를 재시작해야 합니다.
 
 그리고 81개가 모두 일반 접속용은 아닙니다. 맨 끝 몇 자리는 예약석입니다.
