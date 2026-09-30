@@ -291,7 +291,8 @@ const nextPart = seriesInfo?.parts[seriesInfo.index + 1];
 							try {
 								const { svg } = await mermaid.render(`mermaid-${Date.now()}-${i}`, source);
 								holders[i].innerHTML = svg;
-							} catch {
+							} catch (error) {
+								console.error('Mermaid diagram rendering failed.', { source, error });
 								// 문법 오류면 원문을 그대로 보여줍니다 — 빈 칸보다 낫습니다.
 								const pre = document.createElement('pre');
 								pre.textContent = source;
@@ -303,7 +304,8 @@ const nextPart = seriesInfo?.parts[seriesInfo.index + 1];
 					await render();
 					// 라이트/다크를 바꾸면 색을 다시 읽어 그립니다.
 					window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => void render());
-				} catch {
+				} catch (error) {
+					console.error('Mermaid failed to load.', error);
 					// mermaid 를 못 불러오면 원문 코드로 되돌립니다. 빈 칸으로 두지 않습니다.
 					showSource();
 				}
