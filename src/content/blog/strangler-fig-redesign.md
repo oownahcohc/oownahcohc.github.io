@@ -9,7 +9,7 @@ series:
   label: '돌아보기: v1에서 v2로 가는 전환을 다시 설계해 보기'
 ---
 
-레거시 시스템을 새 시스템으로 옮길 때 자주 쓰는 방법 중 하나가 **Strangler Fig**입니다.
+레거시 시스템을 새 시스템으로 옮길 때 자주 쓰는 방법 중 하나가 [**Strangler Fig**](https://martinfowler.com/bliki/StranglerFigApplication.html)입니다.
 옛 시스템 앞에 요청을 가로채는 앞단(facade)을 두고, 기능을 하나씩 새 시스템으로 보낸 뒤 마지막에 옛 시스템을 내리는 방식입니다.
 사용자는 같은 인터페이스를 계속 쓰기 때문에 어느 기능이 먼저 옮겨졌는지 알 필요가 없습니다.
 
@@ -135,7 +135,30 @@ v1 회원을 v2 회원 테이블로 옮겼다고 회원 이관이 끝나는 건 
 
 ### 한 도메인의 쓰기는 한쪽에서 받기
 
-우선 회원은 v1에 남기고 커뮤니티부터 옮겨 보겠습니다. 회원의 가입·수정·탈퇴는 v1이, 게시글·댓글의 생성·수정·삭제는 전환 이후 v2가 담당하도록 나눕니다.
+우선 회원은 v1에 남기고 커뮤니티부터 옮겨 보겠습니다. 여기서 옮긴다는 것은 v1과 v2가 커뮤니티를 함께 받는다는 뜻이 아닙니다. **커뮤니티 데이터의 쓰기 주체를 정해진 시점에 v1에서 v2로 넘긴다**는 뜻입니다.
+
+- 전환 전에는 게시글·댓글·반응의 조회와 생성·수정·삭제를 모두 v1이 처리합니다. v2에는 복사본만 있습니다.
+- 전환 후에는 모두 v2가 처리합니다. 구버전 앱과 v1 관리자 화면의 게시글 요청도 v2로 갑니다.
+- 회원의 가입·수정·탈퇴는 커뮤니티 전환과 상관없이 계속 v1이 받습니다.
+
+서버 두 대는 전환 기간 내내 함께 떠 있지만, 같은 커뮤니티 데이터를 두 서버가 동시에 쓰는 기간은 만들지 않습니다.
+
+```mermaid
+flowchart TB
+    subgraph after["전환 후"]
+        A2["구버전 · 신버전 앱 · v1 관리자 화면<br/><small>구 API · 새 API</small>"] --> L2{"ALB"}
+        L2 -->|"커뮤니티"| S2["v2<br/><small>구 API는 어댑터를 거침</small>"]
+        L2 -->|"회원 · 그 밖"| S3["v1"]
+        S2 --> T2[("v2 게시글 테이블")]
+    end
+    subgraph before["전환 전"]
+        A1["앱 · v1 관리자 화면<br/><small>구 API</small>"] --> L1{"ALB"}
+        L1 -->|"커뮤니티 · 회원 · 그 밖"| S1["v1"]
+        S1 --> T1[("v1 테이블")]
+        T1 -. "변경 복제" .-> C1[("v2 복사본<br/><small>검증용 읽기만</small>")]
+    end
+```
+
 v2에는 작성자 표시와 참조에 필요한 회원 정보를 복제하고, 회원 자체를 바꾸는 요청은 계속 v1에서 받겠습니다.
 
 ```mermaid
@@ -155,17 +178,19 @@ flowchart TB
 
 단방향 복제도 전환 단계에 따라 방향이 달라집니다. v1이 쓰기를 담당하는 동안에는 `v1 → v2`로 변경을 보내고, v2로 넘긴 뒤 레거시에서 최신 데이터를 읽어야 한다면 `v2 → v1`으로 필요한 정보를 보내는 식입니다.
 이는 같은 게시글을 양쪽에서 독립적으로 수정하게 두는 것과는 다릅니다.
+[AWS 가이드](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/strangler-fig.html)도 새 서비스가 자기 데이터를 소유하게 하고, 레거시 DB와는 큐와 동기화 작업으로 맞추라고 합니다. 이 데이터는 결국 맞아지는 정합성이어서 장기 해법이 아니라 임시 해법으로 다루라고 덧붙입니다.
 
-### 양쪽에서 쓰면 충돌 규칙까지 필요하다
+### 택하지 않은 방법: 양쪽에서 쓰기
 
-구버전 앱은 v1에, 신버전 앱은 v2에 계속 쓰도록 두면 앱 전환은 편해 보입니다. 하지만 같은 게시글을 v1에서는 수정하고 v2에서는 삭제했을 때 어떤 상태를 남길지 정해야 합니다.
+어댑터 없이 구버전 앱은 v1에, 신버전 앱은 v2에 계속 쓰게 두는 방법도 있습니다(앞의 방법 2). 앱 쪽 전환은 편해 보이지만, 같은 게시글을 두 서버가 각자 수정할 수 있게 됩니다.
+이 설계에서는 구버전 앱의 요청도 어댑터를 거쳐 v2가 받으므로 전환 뒤의 쓰기 주체는 v2 하나입니다. 양쪽 쓰기를 허용했다면 이런 규칙이 필요했을 것입니다.
 
-나중에 도착한 변경으로 덮어쓰면, 늦게 도착한 수정 이벤트가 삭제한 글을 되살릴 수 있습니다. 시간값으로 비교하더라도 수정과 삭제 중 무엇을 우선할지는 별개의 결정입니다.
-다시 전달받은 변경을 새로운 변경으로 인식해 양쪽에서 계속 전송하지 않도록 출처도 구분해야 합니다.
+- **충돌 규칙:** 같은 게시글을 v1에서는 수정하고 v2에서는 삭제했을 때 어떤 상태를 남길지 정해야 합니다. 나중에 도착한 변경으로 덮어쓰면 늦게 도착한 수정 이벤트가 삭제한 글을 되살릴 수 있고, 시간값으로 비교하더라도 수정과 삭제 중 무엇을 우선할지는 별개의 결정입니다.
+- **출처 구분:** 다시 전달받은 변경을 새로운 변경으로 인식해 양쪽에서 계속 전송하지 않도록 해야 합니다.
+- **변환 유지:** UUID와 새 ID의 매핑, 서로 다른 상태값, v2에서만 생긴 데이터의 역변환을 공존 기간 내내 유지해야 합니다.
 
-여기에 UUID와 새 ID의 매핑, 서로 다른 상태값, v2에서만 생긴 데이터의 역변환까지 붙습니다.
-양방향 동기화를 선택하면 이런 규칙을 공존 기간 내내 유지해야 합니다.
-이 설계에서는 같은 데이터의 쓰기 주체를 하나로 정하고, 반대쪽에는 필요한 읽기용 데이터만 전달하겠습니다. 그러면 충돌 해결 대신 변경의 누락·순서·지연을 관리하는 데 집중할 수 있습니다.
+그래서 같은 데이터의 쓰기 주체를 하나로 정하고, 반대쪽에는 필요한 읽기용 데이터만 전달하겠습니다. 그러면 충돌 해결 대신 변경의 누락·순서·지연을 관리하는 데 집중할 수 있습니다.
+Sam Newman도 [Monolith to Microservices](https://samnewman.io/books/monolith-to-microservices/)에서 코드로 두 DB를 맞추는 방식은 기존 시스템과 새 서비스 중 한쪽만 쓸 때 가장 잘 맞고, 카나리처럼 양쪽이 동시에 요청을 받으면 동기화가 복잡해진다고 설명합니다.
 
 ## 회원을 따로 옮기려면 필요한 것
 
@@ -237,6 +262,7 @@ DB 변경을 수집하든 애플리케이션에서 이벤트를 만들든, 누�
 
 여기서는 **초기 이관과 전환 전 변경 추적에 CDC를 사용하는 쪽으로 잡겠습니다.** 레거시의 여러 쓰기 경로에 이벤트 발행을 추가하는 대신 DB 변경을 수집하고, 변환 처리를 한곳에 모으려는 선택입니다.
 수집 대상 테이블과 삭제 이벤트에 필요한 키, 로그 보존과 재시작 조건을 먼저 점검해야 합니다. CDC 도입만으로 해결됐다고 볼 수는 없고, 아래 전환 절차에서 실제 데이터 대조까지 통과해야 합니다.
+[Azure 문서의 데이터베이스 분리 예시](https://learn.microsoft.com/en-us/azure/architecture/patterns/strangler-fig)도 초기 ETL 뒤에 CDC로 도메인 데이터를 동기화하고, 전환 전에 두 데이터베이스의 일관성을 검증합니다. Fowler 쪽 [Event Interception 사례](https://www.martinfowler.com/articles/patterns-legacy-displacement/event-interception.html)도 지속적인 동기화를 CDC로 처리했습니다.
 전환 후에도 회원은 v1에서 v2로 계속 복제하되, v2가 쓰기를 맡은 게시글은 더 이상 v1에서 덮어쓰지 않도록 대상에서 분리하겠습니다.
 
 ## 관리자와 수집 잡도 데이터를 쓴다
@@ -251,6 +277,88 @@ API 요청이 적은 시간에 라우팅만 바꾸는 것으로는 끝나지 않
 
 푸시처럼 외부로 나가는 동작도 있습니다. v1·v2가 같은 변경을 보고 각각 알림을 보내면 데이터가 같아도 사용자는 알림을 두 번 받습니다.
 복제 적용은 데이터 반영만 하도록 분리하겠습니다. 게시글 전환 후 관련 알림은 v2에서 발송하고, v1의 같은 발송 작업은 중지해야 합니다. 전환 전에 대기 중이던 발송 작업도 어느 쪽에서 마저 처리할지 정해야 합니다.
+
+## 복제 없이 v2가 v1 테이블을 쓴다면
+
+여기까지는 v2에 새 테이블을 두고 복제로 채우는 설계였습니다. 복제를 없애는 방법과 견주어 보겠습니다.
+처음에는 v2의 커뮤니티 코드가 v1의 게시글·댓글 테이블을 그대로 읽고 쓰고, 요청 전환이 끝난 뒤에 v2 테이블로 데이터를 옮기는 방법입니다. 두 서버가 같은 RDS를 쓰고 있어서 접근은 가능합니다.
+
+[Azure 문서의 데이터베이스 분리 예시](https://learn.microsoft.com/en-us/azure/architecture/patterns/strangler-fig)가 이 순서로 시작합니다. 새 시스템이 해당 도메인의 요청을 받으면서 처음에는 레거시 DB의 도메인 테이블을 읽고 쓰고, 이후에 도메인 전용 DB로 옮깁니다. [Khan Academy](https://blog.khanacademy.org/go-services-one-goliath-project/)는 Python 백엔드를 Go 서비스로 옮기면서 데이터베이스는 그대로 두기로 했습니다.
+
+```mermaid
+flowchart TB
+    subgraph SB["직접 사용안"]
+        direction TB
+        D1["v1이 처리"] --> D2["① 요청만 v2로 전환<br/><small>v2가 v1 테이블을 읽고 씀<br/>일부 요청부터 가능</small>"] --> D3["② 데이터를 v2 테이블로 이전<br/><small>복사·변환 → 쓰기 차단 → 전환</small>"]
+    end
+    subgraph SA["복제안"]
+        direction TB
+        R1["v1이 처리<br/><small>v2에 복사·변환</small>"] --> R2["쓰기 차단<br/><small>마지막 변경 반영</small>"] --> R3["요청과 데이터를<br/>v2로 한 번에 전환"]
+    end
+```
+
+이 방법은 전환이 두 번으로 나뉩니다. 앞에서 본 문제도 대부분 줄어듭니다. 같은 행을 읽고 쓰므로 복제 지연이 없고, 롤백은 라우팅을 되돌리는 것으로 끝납니다. ALB는 대상 그룹마다 [가중치](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/rule-action-types.html)를 줘서 요청을 나눌 수 있으니 일부 요청부터 v2로 보내 볼 수도 있습니다.
+
+| 상황 | 복제 (앞의 설계) | v1 테이블 직접 사용 |
+| --- | --- | --- |
+| 가입 직후의 글 작성 | 회원 매핑이 없으면 v1 회원 API로 만들어야 함 | v1 회원 테이블을 바로 조회 |
+| 정지된 회원의 글 작성 | 복제 지연 때문에 v1에 상태 확인 | 같은 테이블이라 지연 없음 |
+| v1 관리자에서 글 숨김 | v2 관리자 API로 연결해야 함 | 같은 행에 반영 |
+| 요청 일부부터 전환 | 쓰기 주체가 둘이 되어 어려움 | 가능 |
+| 롤백 | v2 변경을 v1 형식으로 역반영·역변환 | 라우팅 되돌리기 |
+| 새 ID·새 상태값을 쓰는 시점 | 복구 기간이 끝난 뒤 | 데이터 이전 뒤의 복구 기간이 끝난 뒤 |
+| 따로 만들 것 | 변환 처리, ID 매핑, 역방향 변환 | v1 스키마용 저장소 계층, 나중의 데이터 이전 |
+
+대가도 있습니다.
+
+- v2는 새 스키마에 맞춰 만든 상태입니다. v1 스키마(UUID, 옛 테이블 구조)를 읽고 쓰는 저장소 계층을 하나 더 만들어야 하고, 데이터를 옮기고 나면 버리는 코드입니다.
+- 어려운 부분이 없어지지 않고 뒤로 갑니다. v2 테이블로 옮기는 두 번째 전환에도 초기 복사, CDC, 쓰기 차단, 복구 기간이 그대로 필요합니다. 다만 첫 번째 전환에서는 API만, 두 번째 전환에서는 데이터 위치만 바뀝니다.
+- 알림 발송처럼 쓰기에 딸린 동작을 어느 쪽이 맡을지는 똑같이 정해야 합니다.
+
+이 글에서는 복제로 한 번에 넘기는 설계를 이어가겠습니다. v2를 이미 새 스키마 위에 만들었고, 버릴 저장소 계층을 더해도 데이터 이전이라는 어려운 부분은 한 번 겪어야 하기 때문입니다.
+다만 v1과 구조 차이가 작은 도메인이라면 저장소 계층이 얇으니 이 방법이 더 낫다고 봅니다. 요청 전환과 데이터 이전을 나눠서 하나씩 검증할 수 있기 때문입니다.
+
+## 전환 전에 무엇으로 검증하나
+
+복제가 끝났다는 표시만으로는 v2가 v1과 같게 동작한다고 볼 수 없습니다. 읽기와 쓰기는 검증 방법이 다릅니다.
+
+### 읽기: 같은 조회를 두 곳에서 비교
+
+v1이 응답하는 동안 같은 조회를 v2에도 실행해 결과를 비교하고, 사용자에게는 v1의 결과만 돌려줍니다.
+Stripe는 [Scientist로 옛 테이블과 새 테이블을 함께 읽어](https://stripe.com/blog/online-migrations) 결과가 다르면 실시간으로 경보를 받았고, 새 경로에서 오류가 나도 서비스에는 영향이 없게 했습니다. [Khan Academy](https://blog.khanacademy.org/incremental-rewrites-with-graphql/)도 게이트웨이가 Python과 Go를 함께 호출해 차이를 기록하고 Python의 결과만 돌려줬습니다.
+여기서는 v1의 응답과 v2 어댑터의 응답을 비교하므로, 데이터뿐 아니라 ID 변환과 응답 필드 호환도 함께 확인됩니다.
+
+ALB 규칙으로는 이 비교를 만들 수 없습니다. ALB가 지원하는 규칙 동작은 [전달·리다이렉트·고정 응답 등](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/rule-action-types.html)이고, 요청을 복제해 양쪽에 보내는 동작은 없습니다.
+v1의 요청 처리 안에서 v2를 호출하면 v2의 지연이 사용자 응답에 영향을 주므로, 요청 로그에서 조회를 뽑아 v1과 v2 어댑터에 실행하는 별도 작업을 두겠습니다. 회원별 값이 섞이는 응답은 테스트 계정으로 따로 확인합니다.
+
+```mermaid
+%%{init: {"sequence": {"diagramMarginX": 10}}}%%
+sequenceDiagram
+    participant App as 앱
+    participant V1 as v1
+    participant Job as 비교 작업
+    participant V2 as v2 어댑터
+    App->>V1: 조회 요청
+    V1-->>App: 응답
+    Note over V1,Job: 요청 로그에서<br/>조회를 뽑음
+    Job->>V1: 같은 조회
+    V1-->>Job: v1 응답
+    Job->>V2: 같은 조회
+    V2-->>Job: v2 응답
+    Note over Job: 다른 필드·ID·상태를<br/>기록하고 알림
+```
+
+### 쓰기: 두 번 실행할 수 없는 요청
+
+같은 글 작성 요청을 v1과 v2에 모두 실행하면 게시글이 두 개가 됩니다. Khan Academy도 side-by-side 비교가 변경 요청은 다루지 못한다고 밝히고, 일부 사용자에게만 새 코드를 보내는 카나리 단계를 따로 두었습니다.
+여기서는 v1과 v2가 서로 다른 테이블에 쓰므로, 카나리로 쓰기를 나누면 앞에서 본 양쪽 쓰기 문제가 생깁니다. 그래서 쓰기는 이렇게 나눠 확인합니다.
+
+| 확인할 것 | 방법 | 이 방법으로 알 수 없는 것 |
+| --- | --- | --- |
+| 복제가 정확한가 | v1에서 일어난 생성·수정·삭제·숨김이 v2 복사본에 같은 값으로 반영됐는지 행 단위로 대조 | v2가 직접 쓴 결과 |
+| 어댑터가 쓰기를 처리하는가 | 테스트 데이터로 구 API 쓰기를 실행하고, 결과가 v1 형식으로 다시 읽히는지 확인 | 실제 사용자 입력의 다양성 |
+
+실제 사용자의 쓰기가 v2에 처음 들어오는 순간은 전환한 뒤입니다. 그래서 전환 직후 구간에 위험이 몰리고, 뒤에서 다룰 복구 기간을 두는 이유도 여기에 있습니다.
 
 ## 점진 전환을 했다면 필요한 순서
 
@@ -270,6 +378,7 @@ flowchart TB
 여기서 쓰기 차단은 앱 API만 막는다는 뜻이 아닙니다. 해당 데이터를 바꾸는 관리자 기능, 배치, 재시도 작업도 포함합니다.
 이미 처리 중인 쓰기가 끝난 뒤의 최종 변경 위치를 잡고, 그 위치까지 v2에 반영됐는지 확인해야 합니다.
 이 짧은 정지 구간에는 커뮤니티 쓰기만 일시 중지하고, 회원 등 나머지 도메인은 계속 운영합니다. 점진 전환을 한다고 모든 도메인을 무정지로 넘겨야 하는 것은 아닙니다.
+Shopify는 상점을 다른 샤드로 옮길 때 [복제가 초 단위로 따라잡으면 그 상점의 쓰기를 잠깐 막고](https://shopify.engineering/mysql-database-shard-balancing-terabyte-scale) 마지막 변경까지 반영한 뒤 라우팅을 바꿉니다. 쓰기 락을 제때 잡지 못하면 그 이동은 실패로 처리합니다. Netflix도 결제 데이터를 [국가별로 옮길 때 그 국가의 GET이 아닌 API를 끄고](https://medium.com/netflix-techblog/netflix-billing-migration-to-aws-part-ii-834f6358126) 데이터를 옮긴 뒤 다시 켰습니다.
 
 대조할 때는 행 개수뿐 아니라 ID 매핑 누락, 게시글·댓글의 참조 관계, 삭제·정지 상태처럼 기능에 영향을 주는 값도 봐야 합니다.
 변환에 실패해서 건너뛴 행이 있다면 동기화 작업이 끝났다는 것만으로 전환할 수 없습니다.
@@ -282,6 +391,23 @@ v2에서 쓰기를 시작한 뒤에는 이전 단계의 `v1 → v2` 동기화가
 ## 롤백은 v2가 쓰기를 받기 전후로 달라진다
 
 라우팅을 되돌리는 작업 자체는 간단합니다. 하지만 v2에서 생성한 게시글이 v1에 없으면, 사용자는 방금 쓴 글을 잃어버린 것처럼 보게 됩니다.
+
+커뮤니티가 거치는 상태와 되돌릴 수 있는 지점은 이렇습니다.
+
+```mermaid
+stateDiagram-v2
+    state "1. v1이 처리<br/>v1 → v2 복제" as S1
+    state "2. 쓰기 차단<br/>마지막 변경 반영" as S2
+    state "3. v2가 처리<br/>복구 기간<br/>v2 → v1 반영" as S3
+    state "4. v2만 처리<br/>v1 복사본 제거" as S4
+    [*] --> S1
+    S1 --> S2: 대조 통과
+    S2 --> S1: 불일치 발견
+    S2 --> S3: 누락·불일치 없음
+    S3 --> S1: 롤백
+    S3 --> S4: 복구 기간 종료
+    S4 --> [*]
+```
 
 | 시점 | v1으로 돌아가기 위해 필요한 것 |
 | --- | --- |
@@ -300,6 +426,7 @@ v1 테이블은 이 기간에 복구용 복사본으로만 사용합니다. v1 �
 
 이 기간이 끝나 레거시 복구용 데이터를 더 이상 유지하지 않기로 하면, 복구 방법도 바뀝니다. 이후에는 v2 안에서 호환되는 코드 버전으로 되돌리거나 데이터를 보정하는 방식으로 대응해야 합니다.
 v1 테이블과 역방향 변환 처리를 제거하는 시점을, 단순한 정리 작업이 아니라 복구 가능 범위를 바꾸는 결정으로 잡겠습니다.
+[Azure 문서](https://learn.microsoft.com/en-us/azure/architecture/patterns/strangler-fig)도 레거시 객체를 지운 뒤의 롤백은 객체와 동기화를 되살리고 변경을 다시 재생해야 해서 노력과 위험이 크게 늘어난다며, 제거를 도메인별 마지막 단계로 두라고 권합니다.
 
 ## 이 순서로 v1을 줄여 나간다면
 
@@ -321,7 +448,26 @@ v1 테이블과 역방향 변환 처리를 제거하는 시점을, 단순한 정
 v2 토큰 때문에 공개 조회가 거절되지 않도록 해당 요청에서는 토큰을 빼거나 필터를 수정해야 합니다. 도메인 순서를 바꾸면 이런 인증 경계도 다시 살펴봐야 합니다.
 
 마지막에 v1 서버를 내리더라도 구 API 어댑터는 남길 수 있습니다. 구버전 앱이 계속 사용하는 경로는 v2에서 받아주고, 해당 앱 버전의 지원을 끝낼 때 어댑터도 제거하면 됩니다.
+[Azure 문서](https://learn.microsoft.com/en-us/azure/architecture/patterns/strangler-fig)도 전환이 끝난 뒤 앞단을 옛 클라이언트를 위한 어댑터로 남기는 방법을 소개합니다. [Stripe의 API 버전 관리](https://stripe.com/blog/api-versioning)는 옛 버전의 요청과 응답을 코어 코드 밖의 변환 모듈로 처리하고, 언젠가 옛 버전을 종료할 계획을 밝힙니다.
 
 처음에는 도메인의 API가 준비되면 ALB 규칙을 옮길 수 있다고 생각했습니다. 여기까지 설계해 보니 그 시점은 훨씬 뒤에 있습니다.
 구 요청을 받아줄 코드, 최신 상태까지 따라온 데이터, 관리자와 배치의 새 쓰기 경로, 되돌릴 때의 처리까지 준비돼야 도메인 하나를 넘길 수 있습니다.
 **Strangler Fig를 적용했다면 도메인마다 이 과정을 반복했어야 합니다.** ALB 규칙 변경은 그렇게 준비한 전환을 실제 요청에 적용하는 마지막 단계입니다.
+
+## 참고 자료
+
+- [Martin Fowler: Strangler Fig Application](https://martinfowler.com/bliki/StranglerFigApplication.html)
+- [Martin Fowler: Patterns of Legacy Displacement](https://martinfowler.com/articles/patterns-legacy-displacement/)
+- [Martin Fowler: Event Interception](https://www.martinfowler.com/articles/patterns-legacy-displacement/event-interception.html)
+- [Sam Newman: Monolith to Microservices](https://samnewman.io/books/monolith-to-microservices/)
+- [Azure Architecture Center: Strangler Fig pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/strangler-fig)
+- [AWS Prescriptive Guidance: Strangler fig pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/strangler-fig.html)
+- [AWS Prescriptive Guidance: Transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
+- [AWS 문서: Application Load Balancer 리스너 규칙의 동작 유형](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/rule-action-types.html)
+- [PostgreSQL 문서: Logical Replication Restrictions](https://www.postgresql.org/docs/current/logical-replication-restrictions.html)
+- [Stripe: Online migrations at scale](https://stripe.com/blog/online-migrations)
+- [Stripe: APIs as infrastructure: future-proofing Stripe with versioning](https://stripe.com/blog/api-versioning)
+- [Shopify Engineering: Shard Balancing: Moving Shops Confidently with Zero-Downtime at Terabyte-scale](https://shopify.engineering/mysql-database-shard-balancing-terabyte-scale)
+- [Khan Academy: Incremental Rewrites with GraphQL](https://blog.khanacademy.org/incremental-rewrites-with-graphql/)
+- [Khan Academy: Go + Services = One Goliath Project](https://blog.khanacademy.org/go-services-one-goliath-project/)
+- [Netflix Tech Blog: Netflix Billing Migration to AWS, Part II](https://medium.com/netflix-techblog/netflix-billing-migration-to-aws-part-ii-834f6358126)
