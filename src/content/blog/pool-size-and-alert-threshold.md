@@ -79,7 +79,8 @@ LEAST({DBInstanceClassMemory / 9531392}, 5000)
 ```
 
 이 식은 DB 프로세스에 제공되는 메모리를 AWS가 정한 계수 9,531,392로 나눈 값과 5,000 중 작은 쪽을 기본 연결 한도로 사용한다는 뜻입니다.
-9,531,392는 한도를 계산하기 위한 계수이지, 커넥션 하나에 그만큼의 메모리를 고정으로 할당한다는 뜻은 아닙니다. AWS 문서에는 이 계수를 선택한 이유까지는 나와 있지 않습니다.
+9,531,392바이트는 약 9.09 MiB이고, `DBInstanceClassMemory`가 이만큼 늘 때마다 기본 연결 한도가 하나씩 늘어납니다.
+커넥션 하나에 9.09 MiB를 고정으로 할당한다는 뜻은 아니며, AWS 문서에는 이 계수를 선택한 근거까지는 공개되어 있지 않습니다.
 
 `db.t4g.micro`의 메모리는 1 GiB이니 1,073,741,824 ÷ 9,531,392 ≈ 112가 나옵니다.
 그런데 실제로는 73에서 거절당했으니 이 추정은 틀렸습니다. DB에 직접 조회해 보니 81이었습니다.
@@ -97,7 +98,20 @@ WHERE name = 'shared_buffers';
 ```
 
 `23,570`은 이 인스턴스에서 조회한 8 KiB 버퍼 블록의 개수입니다. 따라서 실제 `shared_buffers` 크기는 `23,570 × 8 KiB = 약 184.1 MiB`입니다.
-RDS의 기본값 공식은 `shared_buffers = {DBInstanceClassMemory/32768}`입니다. 여기서 `32,768`은 AWS 공식에 나온 계수입니다. 이 식을 반대로 풀어 `DBInstanceClassMemory`를 추정했습니다.
+[PostgreSQL 문서](https://www.postgresql.org/docs/current/runtime-config-resource.html)도 단위 없이 지정한 `shared_buffers` 값을 보통 8 KiB 블록 개수로 해석한다고 설명합니다.
+
+RDS의 기본값 공식은 `shared_buffers = {DBInstanceClassMemory/32768}`입니다. `32,768`은 8 KiB 블록 단위로 메모리의 25%를 표현하면서 나온 값입니다.
+
+```text
+8 KiB = 8,192 B
+32,768 = 8,192 ÷ 0.25
+
+shared_buffers의 실제 크기
+= (DBInstanceClassMemory ÷ 32,768) × 8,192
+= DBInstanceClassMemory × 25%
+```
+
+따라서 이 공식을 반대로 풀면 `shared_buffers` 조회값으로 `DBInstanceClassMemory`를 추정할 수 있습니다.
 
 ```text
 DBInstanceClassMemory ≈ 23,570 × 32,768 = 약 736.6 MiB
