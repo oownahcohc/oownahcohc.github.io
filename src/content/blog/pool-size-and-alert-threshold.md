@@ -47,15 +47,15 @@ FATAL: remaining connection slots are reserved for roles with
 원인은 설정 한 줄이었습니다. 운영 프로필의 `maximum-pool-size`가 25였습니다.
 배치 앱은 "운영 API와 경쟁하지 않도록" 5로 낮춰 뒀는데, API 서버는 그대로였습니다.
 
-DB 쪽 사정도 있었습니다. RDS `db.t4g.micro` 한 대가 dev와 prd 데이터베이스를 함께 받고 있었고, 옛 서버 v1의 운영·개발 인스턴스도 같은 DB에 붙어 있었습니다.
+DB 쪽 사정도 있었습니다. RDS `db.t4g.micro` 한 대가 dev와 prd 데이터베이스를 함께 받고 있었고, 옛 v1 운영·개발 서버도 이 RDS 인스턴스에 붙어 있었습니다.
 그래서 v2는 25개를 다 채우기도 전에, 16개를 잡은 시점에 한도에 걸렸습니다.
 
 그날 밤 DB 한 대에 붙어 있던 것들을 그려 보면 이렇습니다.
 
 ```mermaid
 flowchart LR
-    V1P["v1 운영 서버 · EC2<br/><small>구버전 앱 실사용 중<br/>prd DB 35 · dev DB 1</small>"]
-    V1D["v1 개발 서버 · EC2<br/><small>이미 502로 고장<br/>dev DB 20 · prd DB 1</small>"]
+    V1P["v1 운영 서버 · EC2<br/><small>구버전 앱 실사용 중</small>"]
+    V1D["v1 개발 서버 · EC2<br/><small>이미 502로 고장</small>"]
     V2P["v2 운영 서버 · EC2<br/><small>이번 첫 배포 · 풀 최대 25</small>"]
     DB[("RDS 한 대<br/><small>db.t4g.micro<br/>prd DB와 dev DB가 함께<br/>max_connections 81</small>")]
     V1P -->|"36개"| DB
@@ -64,7 +64,6 @@ flowchart LR
 ```
 
 - 서버는 셋이지만 연결 한도 81은 DB 인스턴스 하나에 걸려 있습니다. dev DB로 가는 연결도 prd와 같은 81 안에서 나눠 씁니다.
-- v1 서버 두 대는 자기 환경이 아닌 DB에도 연결을 하나씩 잡고 있었습니다(운영 서버 → dev DB, 개발 서버 → prd DB).
 - v1 숫자는 아래 `pg_stat_activity` 기록에서, v2의 16은 CloudWatch 연결 수가 57에서 73으로 늘어난 만큼에서 가져왔습니다.
   16개가 더해지자 남은 자리는 예약석뿐이었고, 그 뒤로는 v1이든 v2든 새 접속을 받을 수 없는 상태가 됐습니다.
 
@@ -175,9 +174,8 @@ Tomcat 스레드 600개가 커넥션 10개로 버틸 수 있는 건 요청마다
 
 | 누가 | 개수 | 상태 |
 | --- | ---: | --- |
-| v1 운영 서버 | 35 | 전부 idle, 가장 오래된 것 2시간 37분 |
-| v1 개발 서버 | 20 | 전부 idle |
-| 교차 연결 (운영 서버 → dev DB, 개발 서버 → prd DB) | 2 | idle |
+| v1 운영 서버 | 36 | 전부 idle, 가장 오래된 것 2시간 37분 |
+| v1 개발 서버 | 21 | 전부 idle |
 
 57개 중 실제로 일하고 있던 커넥션은 하나도 없었습니다.
 v1 개발 서버는 프록시 설정 오류로 이미 502를 내는 상태였는데도 커넥션은 20개 넘게 잡고 있었습니다.
