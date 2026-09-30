@@ -965,6 +965,10 @@ main {
 .article-content th {
 	background: var(--gray-01);
 }
+.article-content table:has(.table-nowrap) th,
+.article-content table:has(.table-nowrap) td {
+	white-space: nowrap;
+}
 .article-content hr {
 	margin: 48px 0;
 	border: none;
@@ -1286,8 +1290,10 @@ main {
 /* 다이어그램 상자는 본문 단에 정확히 맞춥니다. 좌우로 튀어나가면 목차와 겹치거나
    본문과 어긋나 보입니다. 넘치는 다이어그램은 상자 안에서 가로 스크롤합니다. */
 .mermaid-diagram svg {
+	display: block;
 	max-width: none;
 	height: auto;
+	margin: 0 auto;
 }
 .mermaid-diagram pre {
 	text-align: left;

@@ -313,6 +313,7 @@ class NotificationEventHandlerService(/* ... */) {
 Spring의 커밋 처리(`AbstractPlatformTransactionManager.processCommit`, spring-tx 6.2.6)는 다음 순서로 진행됩니다.
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 280}}}%%
 flowchart TB
     A["doCommit()<br/><small>DB 커밋 완료</small>"] --> B["triggerAfterCommit()"]
     B --> C["triggerAfterCompletion()<br/><small>AFTER_COMMIT 리스너는 여기서 돈다</small>"]
@@ -361,7 +362,7 @@ fun handle(e: Written) {
 
 `connection-timeout`은 운영과 같은 1,100ms로 두고, 풀 크기와 구성을 바꿔 가며 돌렸습니다.
 
-| 경우 | 풀 | 안쪽 트랜잭션 중 활성 커넥션 | 호출자가 받은 예외 | 호출 시간 | 댓글 (바깥) | 알림 (안쪽) |
+| <span class="table-nowrap">경우</span> | 풀 | 안쪽 트랜잭션 중 활성 커넥션 | 호출자가 받은 예외 | 호출 시간 | 댓글 (바깥) | 알림 (안쪽) |
 | --- | ---: | ---: | --- | ---: | --- | --- |
 | 기준 | <span style="white-space:nowrap">10</span> | **2** | 없음 | <span style="white-space:nowrap">1~2 ms</span> | 커밋 | 커밋 |
 | 두 번째 커넥션이 없을 때 | 1 | — (획득 실패) | 없음 | <span style="white-space:nowrap">1,116~1,152 ms</span> | 커밋 | **유실** |
