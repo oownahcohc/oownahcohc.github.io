@@ -3,6 +3,10 @@ title: '속보 알림 임계값 K=5를 정한 근거와 다시 검증해야 하�
 description: '과거 순위 253회차로 속보 알림의 매체 수 임계값을 5로 정했지만, 원본 쿼리와 실제 발송 조건을 다시 확인할 수 없었습니다. 당시 판단과 현재 확정할 수 없는 부분을 구분해 정리합니다.'
 pubDate: '2026-09-30'
 tags: ['notification', 'data-analysis', 'experiment', 'kotlin']
+series:
+  id: baro-backend
+  order: 7
+  label: '속보 알림 임계값 K=5 다시 검증하기'
 ---
 
 속보 알림에는 최근 6시간 동안 같은 사건을 다룬 매체가 몇 곳 이상이어야 하는지를 정하는 값이 있습니다.

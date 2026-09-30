@@ -5,7 +5,7 @@ pubDate: '2026-09-23T13:00:00+09:00'
 tags: ['database', 'schema-design', 'postgresql', 'architecture']
 series:
   id: baro-backend
-  order: 7
+  order: 8
   label: '댓글 테이블 하나로 콘텐츠 5종 받기'
 ---
 

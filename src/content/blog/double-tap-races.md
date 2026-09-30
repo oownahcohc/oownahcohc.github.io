@@ -5,7 +5,7 @@ pubDate: '2026-09-26T11:00:00+09:00'
 tags: ['concurrency', 'idempotency', 'postgresql', 'spring', 'react-native']
 series:
   id: baro-backend
-  order: 10
+  order: 11
   label: '버튼 연타로 생긴 동시성 문제 해결하기'
 ---
 

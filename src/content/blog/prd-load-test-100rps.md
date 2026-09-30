@@ -5,7 +5,7 @@ pubDate: '2026-09-25'
 tags: ['load-test', 'performance', 'hikaricp', 'postgresql', 'transaction', 'spring']
 series:
   id: baro-backend
-  order: 8
+  order: 9
   label: '단계별 부하 테스트로 커넥션 풀 검증하기'
 ---
 

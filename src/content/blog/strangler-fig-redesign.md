@@ -5,7 +5,7 @@ pubDate: '2026-09-26T12:00:00+09:00'
 tags: ['architecture', 'migration', 'legacy', 'aws']
 series:
   id: baro-backend
-  order: 11
+  order: 12
   label: '돌아보기: v1에서 v2로 가는 전환을 다시 설계해 보기'
 ---
 

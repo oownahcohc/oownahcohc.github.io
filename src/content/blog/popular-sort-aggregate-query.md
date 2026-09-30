@@ -6,7 +6,7 @@ updatedDate: '2026-09-29'
 tags: ['postgresql', 'performance', 'database', 'spring']
 series:
   id: baro-backend
-  order: 9
+  order: 10
   label: '조인 전 집계로 인기순 쿼리 개선하기'
 ---
 
