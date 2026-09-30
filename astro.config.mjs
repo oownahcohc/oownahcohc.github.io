@@ -16,6 +16,12 @@ export default defineConfig({
 			process.env.NODE_ENV === 'development'
 				? 'node_modules/.vite/dev'
 				: 'node_modules/.vite/build',
+		// Mermaid는 글 페이지의 동적 import로만 쓰여서, 개발 서버가 첫 방문 때에야 발견해 다시 번들합니다.
+		// 그 순간 열려 있던 탭은 옛 청크 주소를 요청해 "Importing a module script failed"로 도표를 못 그립니다.
+		// 서버를 띄울 때 미리 번들하도록 지정합니다.
+		optimizeDeps: {
+			include: ['mermaid'],
+		},
 	},
 	markdown: {
 		shikiConfig: {
