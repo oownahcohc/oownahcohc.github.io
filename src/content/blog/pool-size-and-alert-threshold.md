@@ -86,15 +86,25 @@ LEAST({DBInstanceClassMemory / 9531392}, 5000)
 
 차이는 [`DBInstanceClassMemory`](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ParamValuesRef.html)가 물리 메모리가 아니라는 데서 옵니다.
 RDS가 전체 메모리에서 운영체제와 관리 프로세스 몫을 빼고 DB 프로세스에 제공하는 양입니다.
-이 값은 직접 표시되지 않지만, 같은 변수를 쓰는 `shared_buffers` 기본값 `{DBInstanceClassMemory/32768}`을 이용해 추정할 수 있습니다.
+이 값은 직접 표시되지 않지만, 인스턴스에서 `shared_buffers`를 조회한 값과 [AWS 문서의 기본값 공식](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Tuning.concepts.memory.html)을 이용해 추정할 수 있습니다.
 
-```
-shared_buffers = 23,570 (8 KiB 페이지 단위)
-  → DBInstanceClassMemory ≈ 23,570 × 32,768 = 약 736.6 MiB
-  → max_connections       ≈ 81.03 → 81 (소수점 버림)
+```sql
+SELECT setting, unit
+FROM pg_settings
+WHERE name = 'shared_buffers';
+
+-- setting = 23570, unit = 8kB
 ```
 
-`shared_buffers`로 추정한 값은 약 736.6 MiB이고, 물리 메모리 1 GiB 중 약 287.4 MiB가 운영체제와 RDS 관리 프로세스 몫으로 빠진 셈입니다.
+`23,570`은 이 인스턴스에서 조회한 8 KiB 버퍼 블록의 개수입니다. 따라서 실제 `shared_buffers` 크기는 `23,570 × 8 KiB = 약 184.1 MiB`입니다.
+RDS의 기본값 공식은 `shared_buffers = {DBInstanceClassMemory/32768}`입니다. 여기서 `32,768`은 AWS 공식에 나온 계수입니다. 이 식을 반대로 풀어 `DBInstanceClassMemory`를 추정했습니다.
+
+```text
+DBInstanceClassMemory ≈ 23,570 × 32,768 = 약 736.6 MiB
+max_connections       ≈ 772,341,760 ÷ 9,531,392 = 81.03 → 81
+```
+
+`shared_buffers` 조회값으로 추정한 `DBInstanceClassMemory`는 약 736.6 MiB이고, 물리 메모리 1 GiB 중 약 287.4 MiB가 운영체제와 RDS 관리 프로세스 몫으로 빠진 셈입니다.
 이 값을 `max_connections` 공식에 넣으면 DB에서 조회한 81과도 일치합니다. 정수 나눗셈에서 소수점이 버려지므로 정확한 메모리 값이 아니라 추정치입니다.
 두 파라미터가 기본 공식을 쓴다는 전제이며, Terraform의 파라미터 그룹에서 두 값을 변경하지 않은 것도 확인했습니다.
 
