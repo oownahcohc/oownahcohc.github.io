@@ -1,5 +1,5 @@
 ---
-title: '결제 확정과 만료 취소의 경합 대응: PAYMENT_IN_PROGRESS와 상태별 만료 시간, 조건부 UPDATE를 걷어내며 잃은 것'
+title: '결제 확정과 만료 취소의 경합 대응 (feat. 결제 중 상태 & 조건부 UPDATE)'
 description: '결제 기한이 지난 주문은 스케줄러가 취소하는데, 결제 요청과 만료 취소가 같은 주문을 동시에 건드릴 수 있습니다. 이 경합을 주문 상태와 만료 시간으로 푼 과정과, 그 풀이가 막지 못한 경우를 테스트로 다시 확인합니다.'
 pubDate: '2026-01-29T11:00:00+09:00'
 updatedDate: '2026-09-29'
@@ -11,9 +11,7 @@ series:
 ---
 
 코팡에서 선착순 재고를 확보한 주문은 결제 대기(`PENDING`) 상태로 만들어지고, 사용자는 5분 안에 결제해야 합니다. 5분 안에 결제하지 않은 주문은 스케줄러가 취소하고 Redis 재고를 되돌립니다.
-이 글은 결제 요청과 만료 취소가 같은 주문을 동시에 건드릴 때의 문제를 다룬 기록입니다. 2025-12-29부터 2026-01-09까지의 작업입니다.
-
-근거는 코드·커밋·PR이고, 이번(2026-09-24)에 레포를 복제해 검증 테스트를 추가로 돌렸습니다. 원래 레포에는 이 테스트를 넣지 않았습니다.
+이 글은 결제 요청과 만료 취소가 같은 주문을 동시에 건드릴 때의 문제를 다룬 기록입니다.
 
 ## 결제 흐름
 
@@ -51,7 +49,7 @@ PG 호출은 DB 트랜잭션 밖에서 합니다. 외부 호출이 느려져도 
 
 ## 결제 중 상태를 따로 둔 이유
 
-처음 주문 상태는 `PENDING`, `PAID`, `CANCELLED` 세 개였습니다. 2025-12-29에 `PAYMENT_IN_PROGRESS`를 추가했고 이유는 두 가지였습니다.
+처음 주문 상태는 `PENDING`, `PAID`, `CANCELLED` 세 개였습니다. 여기에 `PAYMENT_IN_PROGRESS`를 추가했고 이유는 두 가지였습니다.
 
 첫째, 중복 결제 요청(따닥)을 막기 위해서입니다. 상태가 `PENDING`뿐이면 요청 A와 B가 동시에 `PENDING`을 확인하고 둘 다 PG에 결제를 요청할 수 있습니다.
 결제 중 상태가 있으면 상태 변경 자체를 락처럼 쓸 수 있습니다.
@@ -63,7 +61,7 @@ UPDATE orders SET status = 'PAYMENT_IN_PROGRESS'
 
 A가 먼저 바꾸면 B의 UPDATE는 조건이 맞지 않아 0건이 되고, B는 결제를 진행하지 않습니다.
 
-JPA의 `@Version` 낙관적 락 대신 이 방식을 고른 이유도 적어 두었습니다. 충돌은 예외 상황이 아니라 흔히 일어나는 흐름이라 예외를 던지고 잡기보다 영향받은 행 수(0 또는 1)로 분기하는 편이 자연스럽고, 상태 값 자체가 버전 역할을 하므로 컬럼을 따로 둘 필요가 없다는 판단이었습니다.
+JPA의 `@Version` 낙관적 락 대신 이 방식을 고른 이유는 두 가지입니다. 충돌은 예외 상황이 아니라 흔히 일어나는 흐름이라 예외를 던지고 잡기보다 영향받은 행 수(0 또는 1)로 분기하는 편이 자연스럽고, 상태 값 자체가 버전 역할을 하므로 컬럼을 따로 둘 필요가 없습니다.
 
 둘째, 두 상태의 의미가 달라서 만료 정책을 다르게 가져갈 수 있습니다.
 
@@ -86,15 +84,15 @@ JPA의 `@Version` 낙관적 락 대신 이 방식을 고른 이유도 적어 두
 
 선착순은 재고 회전이 중요하니 만료 주문을 최대한 빨리 취소해야 한다고 생각했었습니다. 하지만 몇 초의 회수 지연이 시스템을 복잡하게 만들 만큼 치명적이지는 않다고 판단을 바꿨습니다.
 
-2026-01-08에 두 가지를 바꿨습니다.
+그래서 두 가지를 바꿨습니다.
 
-- 스케줄러가 `PENDING` 주문을 고르는 기준을 "5분 지남"에서 "5분 5초 지남"으로 늦췄습니다([15f11bb](https://github.com/kodesalon/kopang/commit/15f11bb)). 사용자는 5분까지만 결제를 시작할 수 있으므로, 두 쪽이 같은 주문을 건드리는 시간대가 5초 벌어집니다.
-- `PAYMENT_IN_PROGRESS`의 만료를 15분으로 따로 두었습니다([8f06344](https://github.com/kodesalon/kopang/commit/8f06344)). 정상적인 결제는 그 안에 끝나므로 스케줄러와 만나지 않습니다.
+- 스케줄러가 `PENDING` 주문을 고르는 기준을 "5분 지남"에서 "5분 5초 지남"으로 늦췄습니다. 사용자는 5분까지만 결제를 시작할 수 있으므로, 두 쪽이 같은 주문을 건드리는 시간대가 5초 벌어집니다.
+- `PAYMENT_IN_PROGRESS`의 만료를 15분으로 따로 두었습니다. 정상적인 결제는 그 안에 끝나므로 스케줄러와 만나지 않습니다.
 
-두 쪽이 시간상 만나지 않는다고 보고, 같은 날 조건부 UPDATE 메서드를 모두 지웠습니다([5905c55](https://github.com/kodesalon/kopang/commit/5905c55), [b01cda5](https://github.com/kodesalon/kopang/commit/b01cda5) 외). 지금 상태 변경은 조건 없이 주문 번호로만 UPDATE합니다.
+두 쪽이 시간상 만나지 않는다고 보고, 조건부 UPDATE 메서드를 모두 지웠습니다. 지금 상태 변경은 조건 없이 주문 번호로만 UPDATE합니다.
 
 ```java
-// 지운 것 (2025-12-29 ~ 2026-01-08)
+// 지운 것
 @Query("UPDATE OrderJpaEntity o SET o.status = :status "
      + "WHERE o.no = :orderNo AND o.status = 'PENDING'")
 int updateStatusToInProgress(Long orderNo, OrderStatus status);
@@ -104,11 +102,11 @@ int updateStatusToInProgress(Long orderNo, OrderStatus status);
 void updateOrder(Long orderNo, OrderStatus status);
 ```
 
-덧붙이면, 지운 조건부 UPDATE도 반환값(영향받은 행 수)을 확인하는 코드는 아직 없었습니다([PR #25](https://github.com/kodesalon/kopang/pull/25) 본문에 "아직 적용은 안 해 둔 상태"라고 적혀 있습니다).
+덧붙이면, 지운 조건부 UPDATE도 반환값(영향받은 행 수)을 확인하는 코드는 아직 없었습니다.
 
 ## 다시 돌려 본 결과
 
-앱과 같은 설정(`@SpringBootTest`, test 프로필, H2)에서 PG 클라이언트만 테스트용 가짜로 바꿔 돌렸습니다.
+이 풀이가 실제로 경합을 막는지 테스트로 다시 확인했습니다. 앱과 같은 설정(`@SpringBootTest`, test 프로필, H2)에서 PG 클라이언트만 테스트용 가짜로 바꿔 돌렸습니다.
 
 ### 주문 시각이 비어 있어 만료 로직이 돌지 않습니다
 
@@ -117,10 +115,9 @@ VERIFY v1 prepare threw NullPointerException, ordered_at=null
 ```
 
 주문을 만들고 바로 결제를 준비하면 `NullPointerException`이 납니다. 만료를 검사하는 `orderedAt.plusMinutes(5)`에서 주문 시각이 null이기 때문입니다.
-주문 시각 필드는 2025-12-20 리팩터링([5b238b1](https://github.com/kodesalon/kopang/commit/5b238b1))에서 Hibernate의 `@CreationTimestamp`가 Spring Data의 `@CreatedDate`로 바뀌었는데, `@CreatedDate`를 채우는 `@EnableJpaAuditing`은 어느 브랜치에도 없습니다.
-그래서 이 글의 만료 로직(자동 취소 01-06, 결제 전 만료 검사 01-08)은 만들어진 뒤로 실제 주문 시각을 가지고 돈 적이 없습니다. 만료 주문을 찾는 조회도 0건이었습니다. 이 기능들에는 자동화 테스트가 없어서 드러나지 않았습니다.
-게다가 스케줄링을 켜는 `@EnableScheduling`은 2026-03-22에야 들어가서, 그 전에는 만료 취소 스케줄러가 아예 돌지 않았습니다.
-운영 DB 컬럼에 기본값이 있었는지는 확인하지 못했습니다. 다만 JPA가 null을 명시해 INSERT하므로 기본값이 있어도 적용되지 않았을 가능성이 큽니다.
+주문 시각 필드는 리팩터링하면서 Hibernate의 `@CreationTimestamp`를 Spring Data의 `@CreatedDate`로 바꿨는데, `@CreatedDate`를 채우는 `@EnableJpaAuditing`을 켜지 않았습니다.
+그래서 이 글의 만료 로직(자동 취소, 결제 전 만료 검사)은 만들어진 뒤로 실제 주문 시각을 가지고 돈 적이 없습니다. 만료 주문을 찾는 조회도 0건이었습니다. 이 기능들에는 자동화 테스트가 없어서 드러나지 않았습니다.
+게다가 스케줄링을 켜는 `@EnableScheduling`도 한참 뒤에야 들어가서, 그 전에는 만료 취소 스케줄러가 아예 돌지 않았습니다.
 
 이하 테스트는 주문 시각을 직접 채워 넣고 진행했습니다.
 
@@ -154,8 +151,8 @@ VERIFY v3 after scheduler cancel = CANCELLED,
 ```
 
 취소된 주문이 결제 중 상태로 되살아났습니다. 실제 흐름이었다면 재고는 이미 Redis로 돌아간 뒤입니다.
-이 순서가 실제로 생기려면 사용자 쪽 트랜잭션이 검증과 UPDATE 사이에서 5초 이상 멈춰야 하므로(GC 정지, 락 대기 등) 흔하지는 않습니다. 그래도 당시 적은 "동시성 이슈를 근본적으로 제거했다"는 표현은 맞지 않고, "경합이 생길 수 있는 시간대를 크게 좁혔다"가 정확합니다.
-스케줄러의 일괄 취소 쿼리가 `PENDING`뿐 아니라 `PAYMENT_IN_PROGRESS`도 취소 대상으로 허용한다는 점도 이 경우를 넓힙니다([OrderRepositoryImpl](https://github.com/kodesalon/kopang/blob/main/src/main/java/com/kodesalon/kopang/storage/order/OrderRepositoryImpl.java)).
+이 순서가 실제로 생기려면 사용자 쪽 트랜잭션이 검증과 UPDATE 사이에서 5초 이상 멈춰야 하므로(GC 정지, 락 대기 등) 흔하지는 않습니다. 그래도 동시성 이슈를 근본적으로 없앤 것은 아니고, 경합이 생길 수 있는 시간대를 크게 좁힌 것입니다.
+스케줄러의 일괄 취소 쿼리가 `PENDING`뿐 아니라 `PAYMENT_IN_PROGRESS`도 취소 대상으로 허용한다는 점도 이 경우를 넓힙니다.
 
 ### 테스트하지 않았지만 코드에서 보이는 것
 
@@ -170,7 +167,7 @@ VERIFY v3 after scheduler cancel = CANCELLED,
 
 ## 이후 고친 것
 
-위 세 가지 중 앞의 두 가지와, 재고 복구를 실제로 취소한 주문에만 하는 것을 고쳤습니다. 코드와 테스트는 [PR #59](https://github.com/kodesalon/kopang/pull/59)에 있습니다.
+위 세 가지 중 앞의 두 가지와, 재고 복구를 실제로 취소한 주문에만 하는 것을 고쳤습니다. 코드와 테스트는 [이 PR](https://github.com/kodesalon/kopang/pull/59)에 있습니다.
 
 - 상태 변경은 읽어 둔 상태를 조건으로 UPDATE하고, 영향받은 행이 없으면 409로 거절합니다. 결제 준비는 `PENDING`일 때만, 결제 확정은 `PAYMENT_IN_PROGRESS`일 때만 바뀝니다.
 - 도메인도 결제 진행 중인 주문의 결제 준비를 막습니다.
@@ -186,13 +183,3 @@ VERIFY v3 after scheduler cancel = CANCELLED,
 | 만료 일괄 취소 중 결제를 시작한 주문 | 함께 취소, 재고 2개 복구 | 건너뜀, 재고 1개 복구 |
 
 서버를 여러 대로 늘릴 때의 스케줄러 분산 락은 아직 없습니다.
-
-## 다시 확인한 것
-
-| 당시 주장 | 확인 결과 | 근거 |
-| --- | --- | --- |
-| `PAYMENT_IN_PROGRESS`와 조건부 UPDATE로 중복 결제 방어 | 조건부 UPDATE는 01-08에 삭제되어 두 번째 요청도 PG 승인까지 감. PR #59에서 되살림 | 검증 테스트 v2, [5905c55](https://github.com/kodesalon/kopang/commit/5905c55), [PR #59](https://github.com/kodesalon/kopang/pull/59) |
-| 상태별 만료 시간(5분+5초, 15분) | 코드에 있음 | `Order.calculatePendingCutoffTime`, `calculateInProgressCutoffTime` |
-| 만료 시간 분리로 동시성 이슈를 근본적으로 제거 | 경합 시간대를 좁힘. 상태 조건 없는 UPDATE라 겹치면 취소가 덮임 | 검증 테스트 v3 |
-| 복잡한 동시성 제어 없이 결제 정합성 보장 | 성립하지 않음 | 검증 테스트 v1~v3 |
-| 만료 주문 자동 취소 | 주문 시각이 null이라 대상 0건, 결제 준비는 NPE. PR #59에서 주문 시각을 채움 | 검증 테스트 v1, [5b238b1](https://github.com/kodesalon/kopang/commit/5b238b1), [PR #59](https://github.com/kodesalon/kopang/pull/59) |
