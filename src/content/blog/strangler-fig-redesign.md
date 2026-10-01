@@ -1,5 +1,5 @@
 ---
-title: 'Strangler Fig 레거시 전환 재설계: 로드밸런서 규칙만으로는 부족한 이유'
+title: 'Strangler Fig 레거시 전환 재설계 해보기'
 description: '실제로는 한 번에 전환한 v1→v2 이관을 Strangler Fig로 했다면 어땠을지 다시 설계합니다. 부딪히는 문제마다 해결 후보를 비교하고, 고른 방법과 그 대가에 맞춰 설계를 고쳐 나갑니다.'
 pubDate: '2026-09-26T12:00:00+09:00'
 tags: ['architecture', 'migration', 'legacy', 'aws']
