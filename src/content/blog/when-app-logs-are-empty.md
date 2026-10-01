@@ -158,7 +158,7 @@ HTTP POST /api/v2/posts → 200 (1203ms) outcome=exception ex=IOException
 
 여기까지는 "앱에 도착한 요청"의 이야기입니다. 9월 6일 사건은 다른 층이었습니다.
 
-원인은 WAF 관리형 룰 `AWSManagedRulesCommonRuleSet`의 **`SizeRestrictions_BODY`**였습니다.
+원인은 WAF 관리형 룰 `AWSManagedRulesCommonRuleSet`의 <strong>`SizeRestrictions_BODY`</strong>였습니다.
 본문이 **8,192바이트**를 넘으면 무조건 BLOCK합니다.
 
 이미지를 첨부한 글쓰기는 multipart라 이 선을 쉽게 넘습니다.
