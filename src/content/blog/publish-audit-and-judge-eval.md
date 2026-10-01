@@ -5,7 +5,7 @@ pubDate: '2026-09-24'
 tags: ['llm', 'evaluation', 'observability', 'experiment', 'kotlin']
 series:
   id: news-pipeline
-  order: 6
+  order: 7
   label: '뉴스 인텔리전스 앱: 발행분 감사와 사건 판정기 평가'
 ---
 

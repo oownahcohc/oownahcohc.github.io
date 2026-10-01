@@ -1,11 +1,12 @@
 ---
 title: '시간의 제곱으로 커지던 순위 기록 테이블 (feat. 역할 분리 & 사건 종료)'
 description: '뉴스 파이프라인을 출시하기 전에 이틀 돌려 보니 순위 기록 테이블 하나가 DB의 절반 가까이를 차지하고 있었습니다. 이 테이블이 커지는 방식과, 순위 변동 표시를 깨뜨리지 않고 줄인 과정을 정리합니다.'
-pubDate: '2026-10-01'
+pubDate: '2026-08-23'
+updatedDate: '2026-10-01'
 tags: ['postgresql', 'pgvector', 'capacity', 'architecture', 'kotlin']
 series:
   id: news-pipeline
-  order: 7
+  order: 4
   label: '뉴스 인텔리전스 앱: 제곱으로 커지던 순위 기록 테이블'
 ---
 

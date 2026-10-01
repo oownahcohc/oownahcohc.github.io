@@ -6,7 +6,7 @@ updatedDate: '2026-09-24'
 tags: ['architecture', 'postgresql', 'batch', 'outbox', 'spring']
 series:
   id: news-pipeline
-  order: 4
+  order: 5
   label: '뉴스 인텔리전스 앱: 아웃박스 없이 DB 상태로 단계 잇기'
 ---
 

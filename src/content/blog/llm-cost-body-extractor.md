@@ -6,7 +6,7 @@ updatedDate: '2026-10-01'
 tags: ['llm', 'observability', 'crawling', 'cost', 'kotlin']
 series:
   id: news-pipeline
-  order: 5
+  order: 6
   label: '뉴스 인텔리전스 앱: 버려지던 LLM 비용과 본문 추출기'
 ---
 
